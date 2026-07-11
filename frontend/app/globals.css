@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-white text-gray-900 font-sans;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-secondary text-white rounded-lg font-semibold hover:bg-orange-600 transition-all duration-200 shadow-md hover:shadow-lg;
+  }
+
+  .btn-outline {
+    @apply px-6 py-3 border-2 border-primary text-primary rounded-lg font-semibold hover:bg-primary hover:text-white transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200;
+  }
+
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  }
+
+  .dashboard-shell {
+    @apply min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,109,232,0.08),_transparent_35%),linear-gradient(135deg,#f8fbff_0%,#f4f7fb_100%)];
+  }
+
+  .dashboard-card {
+    @apply rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_20px_60px_-35px_rgba(15,23,42,0.35)] backdrop-blur;
+  }
+
+  .dashboard-subtle {
+    @apply text-sm text-slate-500;
+  }
+}
+
+/* Smooth animations */
+@keyframes slide-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in-up 0.5s ease-out;
+}
