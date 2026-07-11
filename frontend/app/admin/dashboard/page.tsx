@@ -822,8 +822,8 @@ export default function AdminDashboard() {
     if (filters.location) params.set('location', filters.location);
     if (filters.status)   params.set('status',   filters.status);
     fetch(`${API_URL}/admin/reports?${params}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => setReportSummary(data))
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setReportSummary(data && typeof data.total_enrollments === 'number' ? data : null))
       .catch(() => setReportSummary(null));
   };
 
@@ -2516,7 +2516,7 @@ export default function AdminDashboard() {
                     <div className="col-span-3 grid grid-cols-2 gap-4 mt-1">
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5">By Course</p>
-                        {Object.entries(reportSummary.by_course).map(([k, v]) => (
+                        {Object.entries(reportSummary.by_course ?? {}).map(([k, v]) => (
                           <div key={k} className="flex justify-between text-sm py-1 border-b border-gray-50">
                             <span className="text-gray-600">{k}</span><span className="font-medium text-gray-900">{v}</span>
                           </div>
@@ -2524,7 +2524,7 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5">By Location</p>
-                        {Object.entries(reportSummary.by_location).map(([k, v]) => (
+                        {Object.entries(reportSummary.by_location ?? {}).map(([k, v]) => (
                           <div key={k} className="flex justify-between text-sm py-1 border-b border-gray-50">
                             <span className="text-gray-600">{k}</span><span className="font-medium text-gray-900">{v}</span>
                           </div>
