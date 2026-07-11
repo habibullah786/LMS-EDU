@@ -2,13 +2,19 @@
 
 import { useAuth } from '@/app/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function Home() {
-  const { isAuthenticated, openLoginModal } = useAuth();
+  const { isAuthenticated, isLoading, openLoginModal } = useAuth();
   const router = useRouter();
 
-  if (isAuthenticated) {
-    router.push('/parent/dashboard');
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/parent/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (!isLoading && isAuthenticated) {
     return null;
   }
 
