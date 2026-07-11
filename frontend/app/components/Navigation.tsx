@@ -8,8 +8,6 @@ export default function Navigation() {
   const { isAuthenticated, user, logout, openLoginModal } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  return null;
-
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50 print:hidden">
       <div className="section-container py-4 flex justify-between items-center">
