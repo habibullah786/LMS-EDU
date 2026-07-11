@@ -7,14 +7,17 @@ import { useAuth } from '../../context/AuthContext';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-type View = 'dashboard' | 'enrollments' | 'users' | 'classes' | 'settings' | 'notifications' | 'workflows' | 'attendance';
+type View = 'dashboard' | 'enrollments' | 'users' | 'classes' | 'settings' | 'notifications' | 'workflows' | 'attendance' | 'continuing_ed';
 type SettingsSection = 'locations' | 'courses' | 'ageGroups' | 'types';
 type ConfigItem = { id: string; value: string; label: string };
+
+type CourseModule = { title: string; description: string };
 
 type ClassItem = {
   id: string; curriculum: string; locations: string[]; ageGroups: string[];
   course: string; type: 'Trial' | 'Paid'; semester: string; price: number;
   date: string; time: string; availableSlots: number; instructor: string; maxStudents: number;
+  hideWhenFull: boolean; department: string; modules: CourseModule[];
 };
 
 type Student = {
@@ -64,6 +67,7 @@ const BLANK_CLASS: Omit<ClassItem, 'id'> = {
   curriculum: '', locations: [], ageGroups: [], course: '',
   type: 'Trial', semester: '4000979', price: 0,
   date: '', time: '', availableSlots: 6, instructor: '', maxStudents: 6,
+  hideWhenFull: false, department: '', modules: [],
 };
 
 function toggleItem(arr: string[], val: string): string[] {
@@ -165,6 +169,64 @@ const WORKFLOWS = [
   },
 ];
 
+type CouponItem = {
+  id: number; code: string; discount_type: 'percent' | 'fixed'; discount_value: string;
+  min_amount: string; max_uses: number | null; used_count: number;
+  expires_at: string | null; active: boolean;
+};
+
+const BLANK_COUPON = {
+  code: '', discount_type: 'percent' as 'percent' | 'fixed', discount_value: '',
+  min_amount: '', max_uses: '', expires_at: '', active: true,
+};
+
+type WaitlistEntry = {
+  id: number; school_class_id: number; parent_name: string; parent_email: string;
+  parent_phone: string | null; student_name: string; position: number;
+  status: 'waiting' | 'approved' | 'rejected';
+  school_class?: { curriculum: string };
+};
+
+type CertificateItem = {
+  id: number; certificate_number: string; student_name: string;
+  course: string | null; location: string | null; issued_at: string;
+};
+
+type EligibleStudent = {
+  id: number; first_name: string; last_name: string; course: string; location: string;
+  curriculum: string; attended: boolean | null;
+};
+
+type CompanyItem = {
+  id: number; name: string; code: string; contact_email: string | null;
+  discount_coupon_id: number | null; active: boolean;
+  discount_coupon?: { code: string } | null;
+};
+
+const BLANK_COMPANY = { name: '', code: '', contact_email: '', discount_coupon_id: '' };
+
+type InvoiceItem = {
+  id: number; invoice_number: string; amount: string; method: 'invoice' | 'purchase_order';
+  purchase_order_number: string | null; status: 'unpaid' | 'paid' | 'void';
+  due_date: string | null; parent_name: string; parent_email: string;
+};
+
+type CampaignItem = {
+  id: number; name: string; channel: 'email' | 'sms' | 'both'; subject: string | null;
+  body: string; filter_location: string | null; filter_course: string | null;
+  sent_count: number; sent_at: string | null;
+};
+
+const BLANK_CAMPAIGN = {
+  name: '', channel: 'email' as 'email' | 'sms' | 'both', subject: '', body: '',
+  filter_location: '', filter_course: '',
+};
+
+type ReportSummary = {
+  total_enrollments: number; total_students: number; total_revenue: number;
+  by_status: Record<string, number>; by_course: Record<string, number>; by_location: Record<string, number>;
+};
+
 // ── Storage helpers ──────────────────────────────────────────────────────────
 
 function loadConfig(key: string, defaults: ConfigItem[]): ConfigItem[] {
@@ -196,6 +258,7 @@ const IcoPerson  = ({ size = 17, className = '' }: IconProps) => <svg width={siz
 const IcoBell    = ({ size = 17, className = '' }: IconProps) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>;
 const IcoZap     = ({ size = 17, className = '' }: IconProps) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IcoClip    = ({ size = 17, className = '' }: IconProps) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>;
+const IcoTag     = ({ size = 17, className = '' }: IconProps) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20.59 13.41L11 3.83A2 2 0 009.59 3.17H4a1 1 0 00-1 1v5.59a2 2 0 00.59 1.42l9.58 9.58a2 2 0 002.82 0l6.6-6.6a2 2 0 000-2.83z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>;
 
 // ── Main component ───────────────────────────────────────────────────────────
 
@@ -582,6 +645,264 @@ export default function AdminDashboard() {
 
   const noShowCount = attendanceStudents.filter(s => s.attended === false).length;
 
+  // ── Continuing Education: Coupons, Waitlist, Certificates ──────────────────
+  const [coupons,        setCoupons]        = useState<CouponItem[]>([]);
+  const [couponForm,     setCouponForm]     = useState(BLANK_COUPON);
+  const [couponModalOpen,setCouponModalOpen]= useState(false);
+  const [couponSaving,   setCouponSaving]   = useState(false);
+  const [couponError,    setCouponError]    = useState('');
+
+  const [waitlistEntries, setWaitlistEntries] = useState<WaitlistEntry[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+
+  const [certificates,      setCertificates]      = useState<CertificateItem[]>([]);
+  const [eligibleStudents,  setEligibleStudents]  = useState<EligibleStudent[]>([]);
+  const [issuingCertFor,    setIssuingCertFor]    = useState<number | null>(null);
+
+  const fetchCoupons = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/coupons`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setCoupons(Array.isArray(data) ? data : []))
+      .catch(() => setCoupons([]));
+  };
+
+  const fetchWaitlist = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    setWaitlistLoading(true);
+    fetch(`${API_URL}/admin/class-waitlist`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setWaitlistEntries(Array.isArray(data) ? data : []))
+      .catch(() => setWaitlistEntries([]))
+      .finally(() => setWaitlistLoading(false));
+  };
+
+  const fetchCertificates = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/certificates`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setCertificates(Array.isArray(data) ? data : []))
+      .catch(() => setCertificates([]));
+  };
+
+  const fetchEligibleStudents = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/attendance`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setEligibleStudents(Array.isArray(data) ? data.filter((s: EligibleStudent) => s.attended === true) : []))
+      .catch(() => setEligibleStudents([]));
+  };
+
+  useEffect(() => {
+    if (view === 'continuing_ed' && user?.role === 'admin') {
+      fetchCoupons(); fetchWaitlist(); fetchCertificates(); fetchEligibleStudents();
+    }
+  }, [view, user]);
+
+  const submitCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponForm.code.trim())       { setCouponError('Code is required.'); return; }
+    if (!couponForm.discount_value)    { setCouponError('Discount value is required.'); return; }
+    setCouponSaving(true);
+    const token = localStorage.getItem('auth_token');
+    try {
+      const res = await fetch(`${API_URL}/admin/coupons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          code:            couponForm.code,
+          discount_type:   couponForm.discount_type,
+          discount_value:  Number(couponForm.discount_value),
+          min_amount:      couponForm.min_amount ? Number(couponForm.min_amount) : 0,
+          max_uses:        couponForm.max_uses ? Number(couponForm.max_uses) : null,
+          expires_at:      couponForm.expires_at || null,
+          active:          couponForm.active,
+        }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.message ?? 'Save failed'); }
+      setCouponModalOpen(false); setCouponForm(BLANK_COUPON); setCouponError('');
+      fetchCoupons();
+    } catch (err) { setCouponError(err instanceof Error ? err.message : 'Failed to save coupon.'); }
+    finally { setCouponSaving(false); }
+  };
+
+  const deleteCoupon = async (id: number) => {
+    const token = localStorage.getItem('auth_token');
+    await fetch(`${API_URL}/admin/coupons/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    setCoupons(prev => prev.filter(c => c.id !== id));
+  };
+
+  const approveWaitlistEntry = async (id: number) => {
+    const token = localStorage.getItem('auth_token');
+    await fetch(`${API_URL}/admin/class-waitlist/${id}/approve`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+    fetchWaitlist();
+  };
+
+  const rejectWaitlistEntry = async (id: number) => {
+    const token = localStorage.getItem('auth_token');
+    await fetch(`${API_URL}/admin/class-waitlist/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reason: 'Rejected by admin' }),
+    }).catch(() => {});
+    fetchWaitlist();
+  };
+
+  const issueCertificate = async (studentId: number) => {
+    setIssuingCertFor(studentId);
+    const token = localStorage.getItem('auth_token');
+    try {
+      await fetch(`${API_URL}/admin/certificates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ trial_enrollment_student_id: studentId }),
+      });
+      fetchCertificates();
+    } catch { /* non-fatal */ }
+    finally { setIssuingCertFor(null); }
+  };
+
+  // ── Corporate portal, Invoices, Campaigns, Reports ──────────────────────────
+  const [companies,       setCompanies]       = useState<CompanyItem[]>([]);
+  const [companyForm,     setCompanyForm]     = useState(BLANK_COMPANY);
+  const [companyModalOpen,setCompanyModalOpen]= useState(false);
+  const [companySaving,   setCompanySaving]   = useState(false);
+  const [companyError,    setCompanyError]    = useState('');
+
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [markingPaidFor, setMarkingPaidFor] = useState<number | null>(null);
+
+  const [campaigns,        setCampaigns]        = useState<CampaignItem[]>([]);
+  const [campaignForm,     setCampaignForm]     = useState(BLANK_CAMPAIGN);
+  const [campaignModalOpen,setCampaignModalOpen]= useState(false);
+  const [campaignSending,  setCampaignSending]  = useState(false);
+  const [campaignResult,   setCampaignResult]   = useState('');
+
+  const [reportFilters, setReportFilters] = useState({ course: '', location: '', status: '' });
+  const [reportSummary, setReportSummary] = useState<ReportSummary | null>(null);
+
+  const fetchCompanies = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/companies`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setCompanies(Array.isArray(data) ? data : []))
+      .catch(() => setCompanies([]));
+  };
+
+  const fetchInvoices = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/invoices`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setInvoices(Array.isArray(data) ? data : []))
+      .catch(() => setInvoices([]));
+  };
+
+  const fetchCampaigns = () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/campaigns`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setCampaigns(Array.isArray(data) ? data : []))
+      .catch(() => setCampaigns([]));
+  };
+
+  const fetchReportSummary = (filters = reportFilters) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    const params = new URLSearchParams();
+    if (filters.course)   params.set('course',   filters.course);
+    if (filters.location) params.set('location', filters.location);
+    if (filters.status)   params.set('status',   filters.status);
+    fetch(`${API_URL}/admin/reports?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setReportSummary(data))
+      .catch(() => setReportSummary(null));
+  };
+
+  useEffect(() => {
+    if (view === 'continuing_ed' && user?.role === 'admin') {
+      fetchCompanies(); fetchInvoices(); fetchCampaigns(); fetchReportSummary();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, user]);
+
+  const submitCompany = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyForm.name.trim()) { setCompanyError('Name is required.'); return; }
+    if (!companyForm.code.trim()) { setCompanyError('Code is required.'); return; }
+    setCompanySaving(true);
+    const token = localStorage.getItem('auth_token');
+    try {
+      const res = await fetch(`${API_URL}/admin/companies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name:               companyForm.name,
+          code:               companyForm.code,
+          contact_email:      companyForm.contact_email || null,
+          discount_coupon_id: companyForm.discount_coupon_id ? Number(companyForm.discount_coupon_id) : null,
+        }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.message ?? 'Save failed'); }
+      setCompanyModalOpen(false); setCompanyForm(BLANK_COMPANY); setCompanyError('');
+      fetchCompanies();
+    } catch (err) { setCompanyError(err instanceof Error ? err.message : 'Failed to save company.'); }
+    finally { setCompanySaving(false); }
+  };
+
+  const deleteCompany = async (id: number) => {
+    const token = localStorage.getItem('auth_token');
+    await fetch(`${API_URL}/admin/companies/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    setCompanies(prev => prev.filter(c => c.id !== id));
+  };
+
+  const markInvoicePaid = async (id: number) => {
+    setMarkingPaidFor(id);
+    const token = localStorage.getItem('auth_token');
+    try {
+      await fetch(`${API_URL}/admin/invoices/${id}/mark-paid`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchInvoices();
+    } catch { /* non-fatal */ }
+    finally { setMarkingPaidFor(null); }
+  };
+
+  const submitCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!campaignForm.name.trim()) return;
+    if (!campaignForm.body.trim()) return;
+    setCampaignSending(true); setCampaignResult('');
+    const token = localStorage.getItem('auth_token');
+    try {
+      const res = await fetch(`${API_URL}/admin/campaigns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name:            campaignForm.name,
+          channel:         campaignForm.channel,
+          subject:         campaignForm.subject || null,
+          body:            campaignForm.body,
+          filter_location: campaignForm.filter_location || null,
+          filter_course:   campaignForm.filter_course || null,
+        }),
+      });
+      const d = await res.json();
+      setCampaignResult(d.message ?? 'Sent');
+      setCampaignModalOpen(false); setCampaignForm(BLANK_CAMPAIGN);
+      fetchCampaigns();
+    } catch { setCampaignResult('Failed to send campaign.'); }
+    finally { setCampaignSending(false); }
+  };
+
   // Configs — locations + ageGroups from DB; courses from localStorage
   const [locations,  setLocations]  = useState<ConfigItem[]>([]);
   const [courses,    setCourses]    = useState<ConfigItem[]>([]);
@@ -708,6 +1029,9 @@ export default function AdminDashboard() {
         availableSlots: Number(c.available_slots ?? 6),
         instructor:     String(c.instructor ?? ''),
         maxStudents:    Number(c.max_students ?? 6),
+        hideWhenFull:   Boolean(c.hide_when_full ?? false),
+        department:     String(c.department ?? ''),
+        modules:        Array.isArray(c.modules) ? c.modules as CourseModule[] : [],
       })) : []))
       .catch(() => {});
   };
@@ -740,6 +1064,9 @@ export default function AdminDashboard() {
           available_slots: classForm.availableSlots,
           instructor:      classForm.instructor,
           max_students:    classForm.maxStudents,
+          hide_when_full:  classForm.hideWhenFull,
+          department:      classForm.department || null,
+          modules:         classForm.modules.filter(m => m.title.trim()),
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -846,6 +1173,7 @@ export default function AdminDashboard() {
           <SidebarBtn icon={<IcoZap />}   label="Workflows"   active={view === 'workflows'}   onClick={() => navTo('workflows')}
             badge={String(WORKFLOWS.length)} />
           <SidebarBtn icon={<IcoClip />}  label="Attendance"  active={view === 'attendance'}  onClick={() => navTo('attendance')} />
+          <SidebarBtn icon={<IcoTag />}   label="Continuing Ed" active={view === 'continuing_ed'} onClick={() => navTo('continuing_ed')} />
 
           <div className="my-2 mx-1" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }} />
 
@@ -1825,6 +2153,391 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {view === 'continuing_ed' && (
+            <div className="space-y-4">
+
+              {/* Coupons */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Coupons</h2>
+                    <p className="text-sm text-gray-400 mt-0.5">Discount codes for continuing education registrations.</p>
+                  </div>
+                  <button onClick={() => { setCouponModalOpen(true); setCouponError(''); setCouponForm(BLANK_COUPON); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors" style={{ background: '#1e3f8b' }}>
+                    <IcoPlus size={16} /> Add Coupon
+                  </button>
+                </div>
+                {coupons.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">No coupons yet.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Code</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Discount</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Min Amount</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Uses</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Expires</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coupons.map(c => (
+                        <tr key={c.id} className="border-b border-gray-50">
+                          <td className="px-4 py-3 font-semibold text-gray-900">{c.code}</td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {c.discount_type === 'percent' ? `${Number(c.discount_value)}%` : `$${Number(c.discount_value).toFixed(2)}`}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">${Number(c.min_amount).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-gray-500">{c.used_count}{c.max_uses ? ` / ${c.max_uses}` : ''}</td>
+                          <td className="px-4 py-3 text-gray-500">{c.expires_at ? c.expires_at.slice(0, 10) : '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${c.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {c.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={() => deleteCoupon(c.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Waitlist */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Class Waitlist</h2>
+                    <p className="text-sm text-gray-400 mt-0.5">Approve or reject students waiting for a spot in a full class.</p>
+                  </div>
+                  {waitlistLoading && <span className="text-xs text-gray-400">Loading…</span>}
+                </div>
+                {waitlistEntries.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">No waitlist entries.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">#</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Student</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Parent</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Class</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {waitlistEntries.map(w => (
+                        <tr key={w.id} className="border-b border-gray-50">
+                          <td className="px-4 py-3 text-gray-500">{w.position}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{w.student_name}</td>
+                          <td className="px-4 py-3 text-gray-600">
+                            <p>{w.parent_name}</p>
+                            <p className="text-xs text-gray-400">{w.parent_email}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-xs max-w-[220px]">{w.school_class?.curriculum ?? `#${w.school_class_id}`}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                              w.status === 'waiting' ? 'bg-yellow-100 text-yellow-700' :
+                              w.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>{w.status}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            {w.status === 'waiting' && (
+                              <>
+                                <button onClick={() => approveWaitlistEntry(w.id)} className="text-green-600 hover:text-green-800 text-xs font-medium mr-3">Approve</button>
+                                <button onClick={() => rejectWaitlistEntry(w.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Reject</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Certificates */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="mb-5">
+                  <h2 className="text-lg font-semibold text-gray-900">Digital Credentials</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Issue a certificate of completion for attended students, or review those already issued.</p>
+                </div>
+
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Eligible for a certificate (attended)</h3>
+                {eligibleStudents.length === 0 ? (
+                  <p className="text-sm text-gray-400 pb-5">No attended students yet — mark attendance first.</p>
+                ) : (
+                  <table className="w-full text-sm mb-6">
+                    <tbody>
+                      {eligibleStudents.map(s => {
+                        const already = certificates.some(c => c.student_name === `${s.first_name} ${s.last_name}`.trim());
+                        return (
+                          <tr key={s.id} className="border-b border-gray-50">
+                            <td className="px-4 py-2.5 font-medium text-gray-900">{s.first_name} {s.last_name}</td>
+                            <td className="px-4 py-2.5 text-gray-500 text-xs">{s.course} · {s.location}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              <button
+                                disabled={already || issuingCertFor === s.id}
+                                onClick={() => issueCertificate(s.id)}
+                                className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                                  already ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                                }`}>
+                                {already ? 'Issued' : issuingCertFor === s.id ? 'Issuing…' : 'Issue Certificate'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Issued certificates</h3>
+                {certificates.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4">No certificates issued yet.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Certificate #</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Student</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Course</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Issued</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {certificates.map(c => (
+                        <tr key={c.id} className="border-b border-gray-50">
+                          <td className="px-4 py-3 font-mono text-xs">
+                            <a href={`/certificates/${c.certificate_number}`} target="_blank" rel="noopener noreferrer" className="text-indigo-700 hover:underline">
+                              {c.certificate_number}
+                            </a>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{c.student_name}</td>
+                          <td className="px-4 py-3 text-gray-600">{c.course} · {c.location}</td>
+                          <td className="px-4 py-3 text-gray-500">{c.issued_at.slice(0, 10)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Corporate Portal */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Corporate Portal</h2>
+                    <p className="text-sm text-gray-400 mt-0.5">Companies whose employees can register using a corporate code for an automatic discount.</p>
+                  </div>
+                  <button onClick={() => { setCompanyModalOpen(true); setCompanyError(''); setCompanyForm(BLANK_COMPANY); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors" style={{ background: '#1e3f8b' }}>
+                    <IcoPlus size={16} /> Add Company
+                  </button>
+                </div>
+                {companies.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">No companies yet.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Company</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Code</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Discount</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Contact</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {companies.map(c => (
+                        <tr key={c.id} className="border-b border-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-indigo-700">{c.code}</td>
+                          <td className="px-4 py-3 text-gray-600">{c.discount_coupon?.code ?? '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{c.contact_email ?? '—'}</td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={() => deleteCompany(c.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Invoices */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="mb-5">
+                  <h2 className="text-lg font-semibold text-gray-900">Invoices</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Registrations paid by invoice or purchase order. Mark paid once payment is received.</p>
+                </div>
+                {invoices.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">No invoices yet.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Invoice #</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Parent</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Amount</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Method</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Due</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map(inv => (
+                        <tr key={inv.id} className="border-b border-gray-50">
+                          <td className="px-4 py-3 font-mono text-xs">
+                            <a href={`/invoices/${inv.invoice_number}`} target="_blank" rel="noopener noreferrer" className="text-indigo-700 hover:underline">
+                              {inv.invoice_number}
+                            </a>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-gray-900">{inv.parent_name}</p>
+                            <p className="text-xs text-gray-400">{inv.parent_email}</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">${Number(inv.amount).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">
+                            {inv.method === 'purchase_order' ? `PO ${inv.purchase_order_number ?? ''}` : 'Invoice'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{inv.due_date?.slice(0, 10) ?? '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                              inv.status === 'paid' ? 'bg-green-100 text-green-700' :
+                              inv.status === 'unpaid' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'
+                            }`}>{inv.status}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {inv.status === 'unpaid' && (
+                              <button onClick={() => markInvoicePaid(inv.id)} disabled={markingPaidFor === inv.id}
+                                className="text-green-600 hover:text-green-800 text-xs font-medium disabled:opacity-50">
+                                {markingPaidFor === inv.id ? 'Marking…' : 'Mark Paid'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Campaigns */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Marketing Campaigns</h2>
+                    <p className="text-sm text-gray-400 mt-0.5">Send a one-off SMS/email blast to parents matching a location or course filter.</p>
+                  </div>
+                  <button onClick={() => { setCampaignModalOpen(true); setCampaignForm(BLANK_CAMPAIGN); setCampaignResult(''); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors" style={{ background: '#1e3f8b' }}>
+                    <IcoPlus size={16} /> New Campaign
+                  </button>
+                </div>
+                {campaignResult && (
+                  <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm">{campaignResult}</div>
+                )}
+                {campaigns.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">No campaigns sent yet.</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Name</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Channel</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Filter</th>
+                        <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Sent</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {campaigns.map(c => (
+                        <tr key={c.id} className="border-b border-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                          <td className="px-4 py-3 text-gray-600 uppercase text-xs">{c.channel}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{[c.filter_location, c.filter_course].filter(Boolean).join(' · ') || 'All'}</td>
+                          <td className="px-4 py-3 text-gray-700">{c.sent_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Custom Reports */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="mb-5">
+                  <h2 className="text-lg font-semibold text-gray-900">Custom Reports</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">Filter enrollments to fit a specific program's reporting needs, or export to CSV.</p>
+                </div>
+                <div className="flex flex-wrap gap-3 items-end mb-5">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Course</label>
+                    <input type="text" className="input-field" placeholder="e.g. Robotics" value={reportFilters.course}
+                      onChange={e => setReportFilters(f => ({ ...f, course: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Location</label>
+                    <input type="text" className="input-field" placeholder="e.g. Thornhill" value={reportFilters.location}
+                      onChange={e => setReportFilters(f => ({ ...f, location: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+                    <input type="text" className="input-field" placeholder="e.g. confirmed" value={reportFilters.status}
+                      onChange={e => setReportFilters(f => ({ ...f, status: e.target.value }))} />
+                  </div>
+                  <button onClick={() => fetchReportSummary()} className="btn-secondary">Run Report</button>
+                  <a href={`${API_URL}/admin/reports/export.csv?course=${encodeURIComponent(reportFilters.course)}&location=${encodeURIComponent(reportFilters.location)}&status=${encodeURIComponent(reportFilters.status)}`}
+                    target="_blank" rel="noopener noreferrer" className="btn-outline">
+                    Export CSV
+                  </a>
+                </div>
+                {reportSummary && (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <p className="text-xs text-gray-500">Total Enrollments</p>
+                      <p className="text-2xl font-bold text-gray-900">{reportSummary.total_enrollments}</p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <p className="text-xs text-gray-500">Total Students</p>
+                      <p className="text-2xl font-bold text-gray-900">{reportSummary.total_students}</p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <p className="text-xs text-gray-500">Revenue</p>
+                      <p className="text-2xl font-bold text-gray-900">${Number(reportSummary.total_revenue).toFixed(2)}</p>
+                    </div>
+                    <div className="col-span-3 grid grid-cols-2 gap-4 mt-1">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5">By Course</p>
+                        {Object.entries(reportSummary.by_course).map(([k, v]) => (
+                          <div key={k} className="flex justify-between text-sm py-1 border-b border-gray-50">
+                            <span className="text-gray-600">{k}</span><span className="font-medium text-gray-900">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5">By Location</p>
+                        {Object.entries(reportSummary.by_location).map(([k, v]) => (
+                          <div key={k} className="flex justify-between text-sm py-1 border-b border-gray-50">
+                            <span className="text-gray-600">{k}</span><span className="font-medium text-gray-900">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
         </main>
       </div>
 
@@ -1925,6 +2638,44 @@ export default function AdminDashboard() {
                   onChange={e => setClassForm(f => ({ ...f, time: e.target.value }))} />
               </div>
 
+              {/* Hide when full */}
+              <div className="flex items-center gap-2 pt-6">
+                <input type="checkbox" id="hideWhenFull" checked={classForm.hideWhenFull}
+                  onChange={e => setClassForm(f => ({ ...f, hideWhenFull: e.target.checked }))} />
+                <label htmlFor="hideWhenFull" className="text-xs font-medium text-gray-600">Hide from listing when sold out</label>
+              </div>
+
+              {/* Department */}
+              <div className="col-span-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Department (optional)</label>
+                <input type="text" className="input-field" placeholder="e.g. Thornhill Campus" value={classForm.department}
+                  onChange={e => setClassForm(f => ({ ...f, department: e.target.value }))} />
+              </div>
+
+              {/* Course modules / structure */}
+              <div className="col-span-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-gray-600">Course Modules (optional)</label>
+                  <button type="button"
+                    onClick={() => setClassForm(f => ({ ...f, modules: [...f.modules, { title: '', description: '' }] }))}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ Add Module</button>
+                </div>
+                <div className="space-y-2">
+                  {classForm.modules.map((m, i) => (
+                    <div key={i} className="flex gap-2 items-start">
+                      <input type="text" className="input-field flex-1" placeholder="Module title"
+                        value={m.title}
+                        onChange={e => setClassForm(f => ({ ...f, modules: f.modules.map((mod, j) => j === i ? { ...mod, title: e.target.value } : mod) }))} />
+                      <input type="text" className="input-field flex-[2]" placeholder="Description"
+                        value={m.description}
+                        onChange={e => setClassForm(f => ({ ...f, modules: f.modules.map((mod, j) => j === i ? { ...mod, description: e.target.value } : mod) }))} />
+                      <button type="button" onClick={() => setClassForm(f => ({ ...f, modules: f.modules.filter((_, j) => j !== i) }))}
+                        className="text-red-500 hover:text-red-700 text-xs px-2 py-2">✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {classError && (
                 <div className="col-span-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm p-3">{classError}</div>
               )}
@@ -1932,6 +2683,177 @@ export default function AdminDashboard() {
                 <button type="button" onClick={() => setClassModalOpen(false)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={classSaving} className="btn-primary disabled:opacity-50">
                   {classSaving ? 'Saving…' : 'Add Class'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ADD COUPON MODAL ══ */}
+      {couponModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 text-lg">Add Coupon</h3>
+              <button onClick={() => setCouponModalOpen(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <form onSubmit={submitCoupon} className="px-7 py-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Code *</label>
+                <input type="text" className="input-field" placeholder="e.g. WELCOME10"
+                  value={couponForm.code}
+                  onChange={e => setCouponForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Discount Type</label>
+                  <select className="input-field" value={couponForm.discount_type}
+                    onChange={e => setCouponForm(f => ({ ...f, discount_type: e.target.value as 'percent' | 'fixed' }))}>
+                    <option value="percent">Percent (%)</option>
+                    <option value="fixed">Fixed ($)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Discount Value *</label>
+                  <input type="number" min={0} step="0.01" className="input-field" value={couponForm.discount_value}
+                    onChange={e => setCouponForm(f => ({ ...f, discount_value: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Min Order Amount</label>
+                  <input type="number" min={0} step="0.01" className="input-field" value={couponForm.min_amount}
+                    onChange={e => setCouponForm(f => ({ ...f, min_amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Max Uses</label>
+                  <input type="number" min={1} className="input-field" placeholder="Unlimited" value={couponForm.max_uses}
+                    onChange={e => setCouponForm(f => ({ ...f, max_uses: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Expires On</label>
+                <input type="date" className="input-field" value={couponForm.expires_at}
+                  onChange={e => setCouponForm(f => ({ ...f, expires_at: e.target.value }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="couponActive" checked={couponForm.active}
+                  onChange={e => setCouponForm(f => ({ ...f, active: e.target.checked }))} />
+                <label htmlFor="couponActive" className="text-xs font-medium text-gray-600">Active</label>
+              </div>
+
+              {couponError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm p-3">{couponError}</div>
+              )}
+              <div className="flex gap-3 justify-end pt-1">
+                <button type="button" onClick={() => setCouponModalOpen(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={couponSaving} className="btn-primary disabled:opacity-50">
+                  {couponSaving ? 'Saving…' : 'Add Coupon'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ADD COMPANY MODAL ══ */}
+      {companyModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 text-lg">Add Company</h3>
+              <button onClick={() => setCompanyModalOpen(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <form onSubmit={submitCompany} className="px-7 py-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Company Name *</label>
+                <input type="text" className="input-field" placeholder="e.g. TechCorp Inc." value={companyForm.name}
+                  onChange={e => setCompanyForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Corporate Code *</label>
+                <input type="text" className="input-field" placeholder="e.g. TECHCORP" value={companyForm.code}
+                  onChange={e => setCompanyForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Contact Email</label>
+                <input type="email" className="input-field" value={companyForm.contact_email}
+                  onChange={e => setCompanyForm(f => ({ ...f, contact_email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Discount Coupon</label>
+                <select className="input-field" value={companyForm.discount_coupon_id}
+                  onChange={e => setCompanyForm(f => ({ ...f, discount_coupon_id: e.target.value }))}>
+                  <option value="">None</option>
+                  {coupons.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}
+                </select>
+              </div>
+              {companyError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm p-3">{companyError}</div>
+              )}
+              <div className="flex gap-3 justify-end pt-1">
+                <button type="button" onClick={() => setCompanyModalOpen(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={companySaving} className="btn-primary disabled:opacity-50">
+                  {companySaving ? 'Saving…' : 'Add Company'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══ NEW CAMPAIGN MODAL ══ */}
+      {campaignModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-7 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 text-lg">New Campaign</h3>
+              <button onClick={() => setCampaignModalOpen(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            </div>
+            <form onSubmit={submitCampaign} className="px-7 py-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Campaign Name *</label>
+                <input type="text" className="input-field" value={campaignForm.name}
+                  onChange={e => setCampaignForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Channel</label>
+                <select className="input-field" value={campaignForm.channel}
+                  onChange={e => setCampaignForm(f => ({ ...f, channel: e.target.value as 'email' | 'sms' | 'both' }))}>
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+              {campaignForm.channel !== 'sms' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Email Subject *</label>
+                  <input type="text" className="input-field" value={campaignForm.subject}
+                    onChange={e => setCampaignForm(f => ({ ...f, subject: e.target.value }))} />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Message *</label>
+                <textarea className="input-field" rows={4} value={campaignForm.body}
+                  onChange={e => setCampaignForm(f => ({ ...f, body: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Filter: Location</label>
+                  <input type="text" className="input-field" placeholder="Any" value={campaignForm.filter_location}
+                    onChange={e => setCampaignForm(f => ({ ...f, filter_location: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Filter: Course</label>
+                  <input type="text" className="input-field" placeholder="Any" value={campaignForm.filter_course}
+                    onChange={e => setCampaignForm(f => ({ ...f, filter_course: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end pt-1">
+                <button type="button" onClick={() => setCampaignModalOpen(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={campaignSending} className="btn-primary disabled:opacity-50">
+                  {campaignSending ? 'Sending…' : 'Send Campaign'}
                 </button>
               </div>
             </form>

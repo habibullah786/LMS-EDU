@@ -78,6 +78,45 @@ class NotificationService
         }
     }
 
+    /**
+     * Sent directly to the new registrant (not the admin) immediately upon
+     * registering for a continuing-education class — separate from
+     * enrollmentCreated(), which alerts the admin.
+     */
+    public function registrationWelcome(array $data): void
+    {
+        $parentName  = $data['parentName']  ?? 'there';
+        $parentEmail = $data['parentEmail'] ?? '';
+        $parentPhone = $data['parentPhone'] ?? '';
+        $childName   = $data['childName']   ?? 'your child';
+        $className   = $data['className']   ?? 'your class';
+
+        if ($parentEmail) {
+            SendEmailNotification::dispatch(
+                $parentEmail, $parentName,
+                "Welcome! Your registration for {$className} is in",
+                $this->buildEmail($parentName, 'Thanks for registering! 🎉', "
+                    <p>We've received <strong>{$childName}</strong>'s registration for <strong>{$className}</strong>.</p>
+                    <p>Here's what happens next:</p>
+                    <ul style='margin:12px 0;padding-left:20px;line-height:1.8;'>
+                      <li>You'll get a confirmation email once payment is finalized</li>
+                      <li>Class details (date, time, location) will be included</li>
+                      <li>You can track this registration from your parent dashboard</li>
+                    </ul>
+                "),
+                'registration_welcome'
+            );
+        }
+
+        if ($parentPhone) {
+            SendSmsNotification::dispatch(
+                $parentPhone,
+                "Thanks for registering {$childName} for {$className}! We'll confirm shortly. — Exceed Robotics",
+                'registration_welcome'
+            );
+        }
+    }
+
     public function enrollmentCreated(array $data): void
     {
         $parentName  = $data['parentName'] ?? 'there';
@@ -269,6 +308,87 @@ class NotificationService
                 'class_reminder'
             );
         }
+    }
+
+    public function waitlistJoined(array $data): void
+    {
+        $parentName  = $data['parentName']  ?? 'there';
+        $parentEmail = $data['parentEmail'] ?? '';
+        $childName   = $data['childName']   ?? 'your child';
+        $className   = $data['className']   ?? 'the class';
+        $position    = $data['position']    ?? null;
+
+        if ($parentEmail) {
+            SendEmailNotification::dispatch(
+                $parentEmail, $parentName,
+                "You're on the waitlist — {$className}",
+                $this->buildEmail($parentName, "You're on the waitlist", "
+                    <p><strong>{$childName}</strong> has been added to the waitlist for <strong>{$className}</strong>, which is currently full.</p>
+                    ".($position ? "<p>Current position: <strong>#{$position}</strong></p>" : "")."
+                    <p>We'll email you as soon as a spot opens up and is approved.</p>
+                "),
+                'waitlist_joined'
+            );
+        }
+    }
+
+    public function waitlistApproved(array $data): void
+    {
+        $parentName  = $data['parentName']  ?? 'there';
+        $parentEmail = $data['parentEmail'] ?? '';
+        $parentPhone = $data['parentPhone'] ?? '';
+        $childName   = $data['childName']   ?? 'your child';
+        $className   = $data['className']   ?? 'the class';
+
+        if ($parentEmail) {
+            SendEmailNotification::dispatch(
+                $parentEmail, $parentName,
+                "A spot opened up! — {$className}",
+                $this->buildEmail($parentName, 'A spot opened up! 🎉', "
+                    <p>Good news — a spot for <strong>{$childName}</strong> in <strong>{$className}</strong> is now available and has been approved.</p>
+                    <p style='margin-top:24px;'>
+                      <a href='https://exceedrobotics.com/search' style='background:#1e3f8b;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;'>
+                        Complete Registration →
+                      </a>
+                    </p>
+                "),
+                'waitlist_approved'
+            );
+        }
+
+        if ($parentPhone) {
+            SendSmsNotification::dispatch(
+                $parentPhone,
+                "Good news! A spot opened up for {$childName}'s {$className}. Complete your registration at exceedrobotics.com — Exceed Robotics",
+                'waitlist_approved'
+            );
+        }
+    }
+
+    public function dailyRegistrationReport(array $data): void
+    {
+        $date            = $data['date']            ?? now()->toDateString();
+        $newEnrollments  = $data['newEnrollments']   ?? 0;
+        $newStudents     = $data['newStudents']      ?? 0;
+        $newLeads        = $data['newLeads']         ?? 0;
+        $revenue         = $data['revenue']          ?? 0;
+        $waitlistJoins   = $data['waitlistJoins']    ?? 0;
+
+        SendEmailNotification::dispatch(
+            $this->adminEmail, 'Admin',
+            "Daily Registration Report — {$date}",
+            $this->buildEmail('Admin', "Daily Registration Report", "
+                <table style='width:100%;border-collapse:collapse;font-size:14px;'>
+                  <tr><td style='padding:6px 0;color:#666;'>Date</td><td><strong>{$date}</strong></td></tr>
+                  <tr><td style='padding:6px 0;color:#666;'>New Enrollments</td><td><strong>{$newEnrollments}</strong></td></tr>
+                  <tr><td style='padding:6px 0;color:#666;'>New Students</td><td>{$newStudents}</td></tr>
+                  <tr><td style='padding:6px 0;color:#666;'>New Leads</td><td>{$newLeads}</td></tr>
+                  <tr><td style='padding:6px 0;color:#666;'>New Waitlist Joins</td><td>{$waitlistJoins}</td></tr>
+                  <tr><td style='padding:6px 0;color:#666;'>Revenue Booked</td><td>\${$revenue}</td></tr>
+                </table>
+            "),
+            'daily_registration_report'
+        );
     }
 
     /**

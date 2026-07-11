@@ -17,11 +17,13 @@ class Payment extends Model
         'status',
         'processed_at',
         'metadata',
+        'payment_plan',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'metadata' => 'json',
+        'payment_plan' => 'array',
         'processed_at' => 'datetime',
     ];
 

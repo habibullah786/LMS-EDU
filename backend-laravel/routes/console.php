@@ -20,4 +20,9 @@ Schedule::command('notifications:send-scheduled')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('notifications:daily-registration-report')
+    ->dailyAt('07:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 
