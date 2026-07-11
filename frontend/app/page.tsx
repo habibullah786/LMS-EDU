@@ -1,22 +1,9 @@
 'use client';
 
 import { useAuth } from '@/app/context/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function Home() {
-  const { isAuthenticated, isLoading, openLoginModal } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace('/parent/dashboard');
-    }
-  }, [isLoading, isAuthenticated, router]);
-
-  if (!isLoading && isAuthenticated) {
-    return null;
-  }
+  const { openLoginModal } = useAuth();
 
   return (
     <div className="min-h-screen bg-white">
