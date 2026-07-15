@@ -25,9 +25,16 @@ WORKDIR /var/www/html
 
 COPY . .
 
-RUN composer install --no-dev --optimize-autoloader --no-interaction \
-    && php artisan config:clear \
+RUN mkdir -p storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/testing \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+RUN composer install --no-dev --optimize-autoloader --no-interaction \
+    && php artisan config:clear
 
 EXPOSE 10000
 
