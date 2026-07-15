@@ -7,11 +7,10 @@ databases:
 services:
   - type: web
     name: lms-edu-backend
-    runtime: php
-    rootDir: backend-laravel
+    runtime: docker
+    dockerfilePath: ./backend-laravel/Dockerfile
+    dockerContext: ./backend-laravel
     plan: free
-    buildCommand: composer install --no-dev --optimize-autoloader && php artisan config:clear
-    startCommand: php artisan migrate --force && php artisan serve --host 0.0.0.0 --port $PORT
     envVars:
       - key: APP_NAME
         value: LMS-EDU
