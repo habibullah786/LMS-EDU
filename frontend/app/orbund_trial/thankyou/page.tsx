@@ -45,7 +45,7 @@ export default function OrbundThankYouPage() {
         ) : (
           <>
             <div className="text-5xl mb-4">🎉</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">You're enrolled!</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re enrolled!</h1>
             <p className="text-gray-500 mb-8">
               Thank you for enrolling with Exceed Robotics. We look forward to seeing you in class!
             </p>

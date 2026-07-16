@@ -64,6 +64,7 @@ export default function CartPage() {
       if (data.cartSummary?.couponCode) setCoupon(data.cartSummary.couponCode);
     } catch {
       // Fall back to local display
+      setError('Failed to load your cart. Please try again.');
       const lines = students.map(s => ({
         classId: s.classIds[0],
         session: s._session || s.classIds[0],

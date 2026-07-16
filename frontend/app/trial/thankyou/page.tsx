@@ -102,7 +102,7 @@ export default function ThankYouPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-3xl font-bold text-gray-900">You're registered!</h1>
+          <h1 className="text-3xl font-bold text-gray-900">You&apos;re registered!</h1>
           <p className="text-gray-500 mt-2">Step 7 of 7 — Registration complete</p>
           {parentEmail && (
             <p className="text-gray-600 mt-3">
@@ -145,7 +145,7 @@ export default function ThankYouPage() {
           </div>
         ) : (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 text-center text-green-700">
-            Your trial class has been booked successfully. We'll be in touch with details!
+            Your trial class has been booked successfully. We&apos;ll be in touch with details!
           </div>
         )}
 

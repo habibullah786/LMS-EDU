@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const users = JSON.parse(stored);
         // Check if any user is missing the role field, if so, reinitialize
-        if (users.some((u: any) => !u.role)) {
+        if (users.some((u: { role?: string }) => !u.role)) {
           localStorage.removeItem(mockStorageKey);
         } else {
           return users as Array<{
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             role: string;
           }>;
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem(mockStorageKey);
       }
     }

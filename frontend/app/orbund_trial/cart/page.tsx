@@ -61,6 +61,7 @@ export default function OrbundCartPage() {
       setSummary(data.cartSummary || {});
       if (data.cartSummary?.couponCode) setCoupon(data.cartSummary.couponCode);
     } catch {
+      setError('Failed to load your cart. Please try again.');
       const lines = students.map(s => ({
         classId: s.classIds[0],
         session: s._session || s.classIds[0],

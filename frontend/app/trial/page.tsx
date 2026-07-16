@@ -200,7 +200,7 @@ export default function TrialRegistrationPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Child's Age Group *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Child&apos;s Age Group *</label>
               <select
                 value={ageGroupId}
                 onChange={e => setAgeGroupId(e.target.value)}

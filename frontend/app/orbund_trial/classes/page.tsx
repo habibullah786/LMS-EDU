@@ -270,7 +270,7 @@ export default function OrbundClassesPage() {
             )}
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Child's First Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Child&apos;s First Name *</label>
                 <input
                   type="text" value={studentForm.firstName}
                   onChange={e => setStudentForm(f => ({ ...f, firstName: e.target.value }))}
@@ -278,7 +278,7 @@ export default function OrbundClassesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Child's Last Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Child&apos;s Last Name *</label>
                 <input
                   type="text" value={studentForm.lastName}
                   onChange={e => setStudentForm(f => ({ ...f, lastName: e.target.value }))}

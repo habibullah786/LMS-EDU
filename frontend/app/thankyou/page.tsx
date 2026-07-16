@@ -142,7 +142,7 @@ export default function ThankYouPage() {
           <div className="rounded-3xl bg-white p-8 shadow-lg">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Student Details</h2>
             <div className="space-y-6">
-              {bookingDetails.cartItems.map(({ entry, classItem }, index) => (
+              {bookingDetails.cartItems.map(({ entry, classItem }) => (
                 <div key={entry.classId} className="rounded-3xl bg-light p-6">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
@@ -177,7 +177,7 @@ export default function ThankYouPage() {
           </div>
 
           <div className="rounded-3xl bg-white p-8 shadow-lg text-center">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">What's Next?</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">What&apos;s Next?</h2>
             <p className="text-gray-600 mb-6">
               You will receive a confirmation email with all the details. Our team will contact you shortly to confirm the class schedule.
             </p>

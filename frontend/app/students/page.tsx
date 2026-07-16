@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/app/context/AuthContext';
 
 type Student = {
   id: string;
@@ -31,7 +30,6 @@ const saveStudents = (students: Student[]) => {
 };
 
 export default function StudentsPage() {
-  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -218,7 +216,7 @@ export default function StudentsPage() {
                 <p className="text-sm text-primary font-semibold">Students</p>
                 <h1 className="text-4xl font-bold text-gray-900 mt-3">Manage your children</h1>
                 <p className="mt-2 text-gray-600 max-w-2xl">
-                  Add and manage your children's profiles to easily book classes for them.
+                  Add and manage your children&apos;s profiles to easily book classes for them.
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -240,7 +238,7 @@ export default function StudentsPage() {
             {students.length === 0 ? (
               <div className="mt-10 rounded-3xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center">
                 <p className="text-xl font-semibold text-gray-900">No students added yet.</p>
-                <p className="mt-3 text-gray-600">Add your children's profiles to start booking classes.</p>
+                <p className="mt-3 text-gray-600">Add your children&apos;s profiles to start booking classes.</p>
                 <button onClick={openAddModal} className="btn-primary mt-6">
                   Add your first student
                 </button>
