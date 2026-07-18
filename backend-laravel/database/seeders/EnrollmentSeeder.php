@@ -64,7 +64,7 @@ class EnrollmentSeeder extends Seeder
         );
 
         // Create enrollment 1
-        $enrollment1 = Enrollment::create([
+        $enrollment1 = Enrollment::updateOrCreate(['trial_ref_id' => 'demo-enrollment-1'], [
             'user_id' => $parentUser->id,
             'parent_name' => 'Demo Parent',
             'parent_email' => 'parent@example.com',
@@ -74,10 +74,7 @@ class EnrollmentSeeder extends Seeder
             'booking_date' => now()->subDays(5),
         ]);
 
-        EnrollmentStudent::create([
-            'enrollment_id' => $enrollment1->id,
-            'student_id' => $student1->id,
-            'class_id' => 'class-1',
+        EnrollmentStudent::updateOrCreate(['enrollment_id' => $enrollment1->id, 'student_id' => $student1->id, 'class_id' => 'class-1'], [
             'class_name' => 'Coding Level 1',
             'course' => 'Coding',
             'location' => 'Delhi',
@@ -87,7 +84,7 @@ class EnrollmentSeeder extends Seeder
         ]);
 
         // Create enrollment 2
-        $enrollment2 = Enrollment::create([
+        $enrollment2 = Enrollment::updateOrCreate(['trial_ref_id' => 'demo-enrollment-2'], [
             'user_id' => $parentUser->id,
             'parent_name' => 'Demo Parent',
             'parent_email' => 'parent@example.com',
@@ -97,10 +94,7 @@ class EnrollmentSeeder extends Seeder
             'booking_date' => now()->subDays(2),
         ]);
 
-        EnrollmentStudent::create([
-            'enrollment_id' => $enrollment2->id,
-            'student_id' => $student2->id,
-            'class_id' => 'class-2',
+        EnrollmentStudent::updateOrCreate(['enrollment_id' => $enrollment2->id, 'student_id' => $student2->id, 'class_id' => 'class-2'], [
             'class_name' => 'Coding Level 2',
             'course' => 'Coding',
             'location' => 'Bengaluru',
@@ -110,7 +104,7 @@ class EnrollmentSeeder extends Seeder
         ]);
 
         // Create enrollment 3
-        $enrollment3 = Enrollment::create([
+        $enrollment3 = Enrollment::updateOrCreate(['trial_ref_id' => 'demo-enrollment-3'], [
             'user_id' => $parentUser->id,
             'parent_name' => 'Demo Parent',
             'parent_email' => 'parent@example.com',
@@ -120,10 +114,7 @@ class EnrollmentSeeder extends Seeder
             'booking_date' => now()->subDays(10),
         ]);
 
-        EnrollmentStudent::create([
-            'enrollment_id' => $enrollment3->id,
-            'student_id' => $student3->id,
-            'class_id' => 'class-4',
+        EnrollmentStudent::updateOrCreate(['enrollment_id' => $enrollment3->id, 'student_id' => $student3->id, 'class_id' => 'class-4'], [
             'class_name' => 'Robotics Advanced',
             'course' => 'Robotics',
             'location' => 'Delhi',
@@ -133,7 +124,7 @@ class EnrollmentSeeder extends Seeder
         ]);
 
         // Create enrollment 4 (multiple students)
-        $enrollment4 = Enrollment::create([
+        $enrollment4 = Enrollment::updateOrCreate(['trial_ref_id' => 'demo-enrollment-4'], [
             'user_id' => $parentUser->id,
             'parent_name' => 'Demo Parent',
             'parent_email' => 'parent@example.com',
@@ -143,10 +134,7 @@ class EnrollmentSeeder extends Seeder
             'booking_date' => now()->subDays(15),
         ]);
 
-        EnrollmentStudent::create([
-            'enrollment_id' => $enrollment4->id,
-            'student_id' => $student1->id,
-            'class_id' => 'class-3',
+        EnrollmentStudent::updateOrCreate(['enrollment_id' => $enrollment4->id, 'student_id' => $student1->id, 'class_id' => 'class-3'], [
             'class_name' => 'Robotics Basics',
             'course' => 'Robotics',
             'location' => 'Kolkata',
@@ -155,10 +143,7 @@ class EnrollmentSeeder extends Seeder
             'type' => 'Trial',
         ]);
 
-        EnrollmentStudent::create([
-            'enrollment_id' => $enrollment4->id,
-            'student_id' => $student2->id,
-            'class_id' => 'class-5',
+        EnrollmentStudent::updateOrCreate(['enrollment_id' => $enrollment4->id, 'student_id' => $student2->id, 'class_id' => 'class-5'], [
             'class_name' => 'Coding Fundamentals',
             'course' => 'Coding',
             'location' => 'Bengaluru',

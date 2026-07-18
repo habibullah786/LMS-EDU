@@ -16,6 +16,13 @@ class SelfRegistrationSeeder extends Seeder
      */
     public function run(): void
     {
+        // This catalog is a single demo dataset. Avoid duplicating its relative-date
+        // classes whenever the production container restarts.
+        if (Program::whereIn('name', ['Coding', 'Robotics'])->count() === 2) {
+            $this->command->info('Self Registration seed data already exists; skipping.');
+            return;
+        }
+
         // Create Programs
         $coding = Program::create([
             'name' => 'Coding',

@@ -68,7 +68,12 @@ class TrialClassesSeeder extends Seeder
             }
         }
 
-        DB::table('school_classes')->insert($rows);
+        foreach ($rows as $row) {
+            DB::table('school_classes')->updateOrInsert(
+                ['curriculum' => $row['curriculum'], 'date' => $row['date'], 'time' => $row['time']],
+                $row
+            );
+        }
 
         $this->command->info('Inserted ' . count($rows) . ' trial classes.');
     }
