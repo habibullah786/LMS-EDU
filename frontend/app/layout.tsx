@@ -1,15 +1,11 @@
 'use client';
 
 import './globals.css';
-import { usePathname } from 'next/navigation';
 import { AuthProvider } from './context/AuthContext';
 import Navigation from '@/app/components/Navigation';
 import LoginModal from '@/app/components/LoginModal';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const hideNav = pathname?.startsWith('/admin') || pathname?.startsWith('/parent');
-
   return (
     <html lang="en">
       <head>
@@ -24,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <AuthProvider>
-          {!hideNav && <Navigation />}
+          <Navigation />
           <LoginModal />
           <main>{children}</main>
         </AuthProvider>

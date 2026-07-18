@@ -17,7 +17,6 @@ class Payment extends Model
         'status',
         'processed_at',
         'metadata',
-        'payment_plan',
         'gateway_order_id',
         'expires_at',
     ];
@@ -25,7 +24,6 @@ class Payment extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'metadata' => 'json',
-        'payment_plan' => 'array',
         'processed_at' => 'datetime',
         'expires_at' => 'datetime',
     ];

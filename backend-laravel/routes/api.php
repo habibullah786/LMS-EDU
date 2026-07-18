@@ -19,15 +19,6 @@ use App\Http\Controllers\WorkflowEventController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\SchoolClassController;
 use App\Http\Controllers\TrialConfigAdminController;
-use App\Http\Controllers\CouponController;
-use App\Http\Controllers\SchoolClassWaitlistController;
-use App\Http\Controllers\CertificateController;
-use App\Http\Controllers\ContinuingEducationController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\CompanyController;
-use App\Http\Controllers\CampaignController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\TrialConfirmationController;
@@ -47,23 +38,6 @@ Route::post('trial/confirmation/{token}', [TrialConfirmationController::class, '
 Route::post('webhooks/twilio/incoming', [TwilioWebhookController::class, 'incoming'])->middleware('throttle:120,1');
 // Step 6: record payment after Orbund process-payment
 Route::post('trial/payment', [OrbundPaymentController::class, 'store'])->name('trial.payment.store');
-
-// Coupons — public validation
-Route::post('coupons/validate', [CouponController::class, 'validateCode'])->name('coupons.validate');
-
-// School class waitlist — public join
-Route::post('school-classes/{schoolClass}/waitlist', [SchoolClassWaitlistController::class, 'store'])->name('school-classes.waitlist.store');
-
-// Certificates — public verification
-Route::get('certificates/{certificateNumber}', [CertificateController::class, 'show'])->name('certificates.show');
-
-// Continuing Education — native (non-Orbund) course discovery + registration
-Route::get('continuing-education/classes',  [ContinuingEducationController::class, 'classes'])->name('ce.classes');
-Route::post('continuing-education/register',[ContinuingEducationController::class, 'register'])->name('ce.register');
-Route::get('continuing-education/calendar.ics', [CalendarController::class, 'feed'])->name('ce.calendar');
-
-// Invoices — public view/print
-Route::get('invoices/{invoiceNumber}', [InvoiceController::class, 'show'])->name('invoices.show');
 
 // ─── Auth endpoints ───────────────────────────────────────────────────────────
 // Auth endpoints
@@ -182,42 +156,7 @@ Route::prefix('admin')->middleware([AuthenticateApiToken::class, EnsureAdmin::cl
 
     Route::get('classes',           [SchoolClassController::class, 'index'])->name('admin.classes.index');
     Route::post('classes',          [SchoolClassController::class, 'store'])->name('admin.classes.store');
-    Route::patch('classes/{schoolClass}',  [SchoolClassController::class, 'update'])->name('admin.classes.update');
     Route::delete('classes/{schoolClass}', [SchoolClassController::class, 'destroy'])->name('admin.classes.destroy');
-
-    // Coupons (admin management)
-    Route::get('coupons',              [CouponController::class, 'index'])->name('admin.coupons.index');
-    Route::post('coupons',             [CouponController::class, 'store'])->name('admin.coupons.store');
-    Route::patch('coupons/{coupon}',   [CouponController::class, 'update'])->name('admin.coupons.update');
-    Route::delete('coupons/{coupon}',  [CouponController::class, 'destroy'])->name('admin.coupons.destroy');
-
-    // School class waitlist (admin management)
-    Route::get('class-waitlist',                    [SchoolClassWaitlistController::class, 'index'])->name('admin.class-waitlist.index');
-    Route::post('class-waitlist/{waitlist}/approve', [SchoolClassWaitlistController::class, 'approve'])->name('admin.class-waitlist.approve');
-    Route::post('class-waitlist/{waitlist}/reject',  [SchoolClassWaitlistController::class, 'reject'])->name('admin.class-waitlist.reject');
-
-    // Certificates (admin issue/manage)
-    Route::get('certificates',              [CertificateController::class, 'index'])->name('admin.certificates.index');
-    Route::post('certificates',             [CertificateController::class, 'store'])->name('admin.certificates.store');
-    Route::delete('certificates/{certificate}', [CertificateController::class, 'destroy'])->name('admin.certificates.destroy');
-
-    // Corporate portal (companies)
-    Route::get('companies',              [CompanyController::class, 'index'])->name('admin.companies.index');
-    Route::post('companies',             [CompanyController::class, 'store'])->name('admin.companies.store');
-    Route::patch('companies/{company}',  [CompanyController::class, 'update'])->name('admin.companies.update');
-    Route::delete('companies/{company}', [CompanyController::class, 'destroy'])->name('admin.companies.destroy');
-
-    // Invoices
-    Route::get('invoices',                       [InvoiceController::class, 'index'])->name('admin.invoices.index');
-    Route::post('invoices/{invoice}/mark-paid',  [InvoiceController::class, 'markPaid'])->name('admin.invoices.mark-paid');
-
-    // Bulk SMS/email campaigns
-    Route::get('campaigns',  [CampaignController::class, 'index'])->name('admin.campaigns.index');
-    Route::post('campaigns', [CampaignController::class, 'store'])->name('admin.campaigns.store');
-
-    // Custom reports
-    Route::get('reports',            [ReportController::class, 'summary'])->name('admin.reports.summary');
-    Route::get('reports/export.csv', [ReportController::class, 'exportCsv'])->name('admin.reports.export');
 
     // Trial form config management (locations + age groups)
     Route::get('trial-config/locations',                    [TrialConfigAdminController::class, 'locationsIndex'])->name('admin.trial-config.locations.index');

@@ -44,9 +44,6 @@ export default function ClassesPage() {
   const [studentForm, setStudentForm]   = useState({ firstName: '', lastName: '', dateOfBirth: '' });
   const [modalError, setModalError]     = useState('');
   const [regSummary, setRegSummary]     = useState<{ locationLabel: string; ageLabel: string; course: string } | null>(null);
-  const [waitlistMode, setWaitlistMode] = useState(false);
-  const [waitlistSaving, setWaitlistSaving] = useState(false);
-  const [waitlistJoined, setWaitlistJoined] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const reg = localStorage.getItem('trial_registration');
@@ -73,44 +70,11 @@ export default function ClassesPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  function openModal(cls: SchoolClass, waitlist = false) {
+  function openModal(cls: SchoolClass) {
     setSelectedClass(cls);
     setStudentForm({ firstName: '', lastName: '', dateOfBirth: '' });
     setModalError('');
-    setWaitlistMode(waitlist);
     setShowModal(true);
-  }
-
-  async function joinWaitlist() {
-    if (!studentForm.firstName.trim()) { setModalError('Please enter first name.'); return; }
-    if (!studentForm.lastName.trim())  { setModalError('Please enter last name.');  return; }
-    if (!studentForm.dateOfBirth)      { setModalError('Please enter date of birth.'); return; }
-    if (!selectedClass) return;
-
-    const reg = localStorage.getItem('trial_registration');
-    const { name, email, phone } = reg ? JSON.parse(reg) : { name: '', email: '', phone: '' };
-
-    setWaitlistSaving(true);
-    try {
-      const res = await fetch(`${BASE}/school-classes/${selectedClass.id}/waitlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parent_name:    name,
-          parent_email:   email,
-          parent_phone:   phone,
-          student_name:   `${studentForm.firstName.trim()} ${studentForm.lastName.trim()}`,
-          date_of_birth:  studentForm.dateOfBirth,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed');
-      setWaitlistJoined(prev => new Set(prev).add(selectedClass.id));
-      setShowModal(false);
-    } catch {
-      setModalError('Failed to join waitlist. Please try again.');
-    } finally {
-      setWaitlistSaving(false);
-    }
   }
 
   function addStudent() {
@@ -243,12 +207,8 @@ export default function ClassesPage() {
                     <button onClick={() => openModal(cls)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg">
                       Add to Cart
                     </button>
-                  ) : waitlistJoined.has(cls.id) ? (
-                    <span className="text-green-600 text-sm font-medium">✓ On Waitlist</span>
                   ) : (
-                    <button onClick={() => openModal(cls, true)} className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg">
-                      Join Waitlist
-                    </button>
+                    <span className="text-gray-400 text-sm">Full</span>
                   )}
                 </div>
               </div>
@@ -265,7 +225,7 @@ export default function ClassesPage() {
       {showModal && selectedClass && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold mb-1">{waitlistMode ? 'Join Waitlist' : 'Add Student'}</h2>
+            <h2 className="text-lg font-bold mb-1">Add Student</h2>
             <p className="text-gray-500 text-sm mb-4">{selectedClass.curriculum}</p>
             {modalError && (
               <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded text-sm">{modalError}</div>
@@ -292,13 +252,7 @@ export default function ClassesPage() {
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setShowModal(false)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50">Cancel</button>
-              {waitlistMode ? (
-                <button onClick={joinWaitlist} disabled={waitlistSaving} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold py-2 rounded-lg">
-                  {waitlistSaving ? 'Joining…' : 'Join Waitlist'}
-                </button>
-              ) : (
-                <button onClick={addStudent} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg">Add to Cart</button>
-              )}
+              <button onClick={addStudent} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg">Add to Cart</button>
             </div>
           </div>
         </div>

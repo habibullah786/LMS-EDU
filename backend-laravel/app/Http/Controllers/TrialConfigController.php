@@ -46,9 +46,6 @@ class TrialConfigController extends Controller
             if ($ageGroup && !in_array($ageGroup, $cls->age_groups ?? [])) {
                 return false;
             }
-            if ($cls->hide_when_full && $cls->isFull()) {
-                return false;
-            }
             return true;
         })->values();
 
