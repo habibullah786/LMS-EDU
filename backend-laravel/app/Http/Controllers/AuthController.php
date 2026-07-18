@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use App\Models\ApiToken;
+use App\Models\Lead;
 
 class AuthController extends Controller
 {
@@ -26,9 +28,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        $token = Str::random(60);
-        $user->remember_token = $token;
-        $user->save();
+        $token = $this->issueToken($user, $request);
+
+        Lead::whereRaw('LOWER(email) = ?', [strtolower($user->email)])->where('is_registered', false)->update([
+            'user_id' => $user->id,
+            'is_registered' => true,
+            'registered_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         return response()->json([
             'token' => $token,
@@ -51,7 +58,15 @@ class AuthController extends Controller
             'password' => $data['password'],
             'phone' => $data['phone'] ?? null,
             'role' => 'parent',
-            'remember_token' => Str::random(60),
+        ]);
+
+        $token = $this->issueToken($user, $request);
+
+        Lead::whereRaw('LOWER(email) = ?', [strtolower($user->email)])->where('is_registered', false)->update([
+            'user_id' => $user->id,
+            'is_registered' => true,
+            'registered_at' => now(),
+            'updated_at' => now(),
         ]);
 
         $this->notifications->fireEventWorkflows('user_registered', [
@@ -67,19 +82,14 @@ class AuthController extends Controller
         ]);
 
         return response()->json([
-            'token' => $user->remember_token,
+            'token' => $token,
             'user' => $this->serializeUser($user),
         ], 201);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        if ($user) {
-            $user->remember_token = null;
-            $user->save();
-        }
+        $request->attributes->get('api_token')?->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
     }
@@ -143,5 +153,17 @@ class AuthController extends Controller
             'phone' => $user->phone,
             'role' => $user->role,
         ];
+    }
+
+    private function issueToken(User $user, Request $request): string
+    {
+        $plainText = Str::random(64);
+        $user->apiTokens()->create([
+            'name' => (string) $request->userAgent() ?: 'web',
+            'token_hash' => hash('sha256', $plainText),
+            'expires_at' => now()->addDays((int) config('auth.api_token_days', 30)),
+        ]);
+
+        return $plainText;
     }
 }

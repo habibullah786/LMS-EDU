@@ -2,134 +2,94 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ProcessPaymentRequest;
 use App\Models\Enrollment;
 use App\Models\Payment;
-use App\Http\Requests\ProcessPaymentRequest;
+use App\Services\PaymentLifecycleService;
+use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 
 class PaymentController extends Controller
 {
-    /**
-     * Create payment record and prepare for processing
-     */
+    public function __construct(
+        private RazorpayService $razorpay,
+        private PaymentLifecycleService $paymentLifecycle,
+    ) {}
+
     public function createPayment($enrollmentId): JsonResponse
     {
         $enrollment = Enrollment::findOrFail($enrollmentId);
+        abort_unless($enrollment->user_id === request()->user()->id, 404);
 
         if ($enrollment->is_paid) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This enrollment has already been paid.',
-            ], 400);
+            return response()->json(['success' => false, 'message' => 'This enrollment has already been paid.'], 409);
         }
 
-        // Create payment record
-        $payment = Payment::create([
+        $payment = Payment::firstOrCreate([
             'enrollment_id' => $enrollment->id,
+            'status' => 'pending',
+        ], [
             'user_id' => $enrollment->user_id,
             'amount' => $enrollment->total_amount,
-            'currency' => 'INR',
-            'status' => 'pending',
+            'currency' => 'CAD',
+            'expires_at' => now()->addMinutes(15),
         ]);
 
-        // In a real scenario, integrate with Razorpay
-        // For now, return details for frontend to handle
+        if (!$payment->gateway_order_id) {
+            $order = $this->razorpay->createOrder($payment);
+            $payment->update(['gateway_order_id' => $order['id']]);
+        }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment initiated.',
-            'data' => [
-                'payment_id' => $payment->id,
-                'enrollment_id' => $enrollment->id,
-                'amount' => $enrollment->total_amount,
-                'currency' => 'INR',
-                // Razorpay order creation would happen here
-                'razorpay_order_id' => 'order_' . uniqid(), // Placeholder
-            ],
-        ]);
+        return response()->json(['success' => true, 'data' => [
+            'payment_id' => $payment->id,
+            'enrollment_id' => $enrollment->id,
+            'amount' => $payment->amount,
+            'currency' => $payment->currency,
+            'razorpay_order_id' => $payment->gateway_order_id,
+            'razorpay_key' => config('services.razorpay.key_id'),
+            'reservation_expires_at' => $payment->expires_at,
+        ]]);
     }
 
-    /**
-     * Process payment (verify and mark as completed)
-     */
     public function processPayment(ProcessPaymentRequest $request): JsonResponse
     {
         $data = $request->validated();
-
         $enrollment = Enrollment::findOrFail($data['enrollment_id']);
+        abort_unless($enrollment->user_id === $request->user()->id, 404);
+
         $payment = Payment::where('enrollment_id', $enrollment->id)->latest()->firstOrFail();
+        $valid = hash_equals((string) $payment->gateway_order_id, $data['razorpay_order_id'])
+            && $this->razorpay->validCheckoutSignature(
+                $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature']
+            );
 
-        try {
-            // In production, verify with Razorpay
-            // For MVP, we simulate verification
-            if ($data['payment_method'] === 'razorpay' && isset($data['razorpay_signature'])) {
-                // Verify signature here
-                // For now, assume it's valid
-                $transactionId = $data['razorpay_payment_id'] ?? 'txn_' . uniqid();
-                
-                $payment->markAsCompleted($transactionId, [
-                    'razorpay_payment_id' => $data['razorpay_payment_id'] ?? null,
-                    'razorpay_order_id' => $data['razorpay_order_id'] ?? null,
-                ]);
-
-                // Mark enrollment as paid and activate
-                $enrollment->update([
-                    'is_paid' => true,
-                    'status' => 'active',
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Payment successful! You are now enrolled.',
-                    'data' => [
-                        'enrollment_id' => $enrollment->id,
-                        'payment_id' => $payment->id,
-                        'status' => 'completed',
-                    ],
-                ]);
-            }
-
-            throw new \Exception('Invalid payment method');
-        } catch (\Exception $e) {
-            $payment->markAsFailed($e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment processing failed: ' . $e->getMessage(),
-            ], 400);
+        if (!$valid) {
+            return response()->json(['success' => false, 'message' => 'Invalid payment signature.'], 422);
         }
+
+        $this->paymentLifecycle->complete($payment, $data['razorpay_payment_id'], [
+            'razorpay_payment_id' => $data['razorpay_payment_id'],
+            'razorpay_order_id' => $data['razorpay_order_id'],
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Payment verified.', 'data' => [
+            'enrollment_id' => $enrollment->id,
+            'payment_id' => $payment->id,
+            'status' => 'completed',
+        ]]);
     }
 
-    /**
-     * Get payment details
-     */
     public function showPayment($paymentId): JsonResponse
     {
-        $payment = Payment::with('enrollment', 'user')->findOrFail($paymentId);
-
-        return response()->json([
-            'success' => true,
-            'data' => $payment,
-        ]);
+        $payment = Payment::with('enrollment')->findOrFail($paymentId);
+        abort_unless($payment->user_id === request()->user()->id || request()->user()->isAdmin(), 404);
+        return response()->json(['success' => true, 'data' => $payment]);
     }
 
-    /**
-     * List payments for a user
-     */
-    public function listUserPayments($userId = null): JsonResponse
+    public function listUserPayments(): JsonResponse
     {
-        if (!$userId) {
-            $userId = auth()->id();
-        }
-
-        $payments = Payment::where('user_id', $userId)
-            ->with('enrollment')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $payments,
-        ]);
+        $payments = Payment::where('user_id', request()->user()->id)
+            ->with('enrollment')->latest()->get();
+        return response()->json(['success' => true, 'data' => $payments]);
     }
 }

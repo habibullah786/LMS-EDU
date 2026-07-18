@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Enrollment;
-use App\Models\Lead;
 use App\Models\TrialEnrollmentStudent;
 use App\Models\User;
 use App\Services\NotificationService;
@@ -26,7 +25,6 @@ class OrbundEnrollmentController extends Controller
             'total_amount'                   => 'nullable|numeric|min:0',
             'source'                         => 'nullable|string|max:100',
             'trial_ref_id'                   => 'nullable|string|max:100',
-            'lead_id'                        => 'nullable|integer|exists:leads,id',
             'location'                       => 'nullable|string|max:100',
             'course'                         => 'nullable|string|max:100',
             'students'                       => 'nullable|array',
@@ -56,20 +54,17 @@ class OrbundEnrollmentController extends Controller
 
         DB::beginTransaction();
         try {
-            $isFree = ($data['total_amount'] ?? 0) == 0;
-
             $enrollment = Enrollment::create([
                 'user_id'           => $user->id,
                 'parent_name'       => $data['parent_name'],
                 'parent_email'      => $data['parent_email'],
                 'parent_phone'      => $data['parent_phone'] ?? '',
                 'total_amount'      => $data['total_amount'] ?? 0,
-                'status'            => $isFree ? 'confirmed' : 'pending',
+                'status'            => 'pending',
                 'booking_date'      => now(),
                 'registration_type' => 'individual',
                 'source'            => $data['source'] ?? null,
                 'trial_ref_id'      => $data['trial_ref_id'] ?? null,
-                'lead_id'           => $data['lead_id'] ?? null,
             ]);
 
             foreach ($data['students'] ?? [] as $studentData) {
@@ -86,11 +81,6 @@ class OrbundEnrollmentController extends Controller
                     'course'           => $studentData['course'] ?? $data['course'] ?? null,
                     'price'            => $studentData['price'] ?? null,
                 ]);
-            }
-
-            // Mark lead as enrolled if lead_id was provided
-            if (!empty($data['lead_id'])) {
-                Lead::where('id', $data['lead_id'])->update(['status' => 'enrolled']);
             }
 
             DB::commit();
@@ -122,15 +112,6 @@ class OrbundEnrollmentController extends Controller
             $this->notifications->fireEventWorkflows('enrollment_created', $eventData);
             $this->notifications->enrollmentCreated($notifPayload);
 
-            // For free trial, also fire confirmed notifications immediately
-            if ($isFree) {
-                $this->notifications->fireEventWorkflows('enrollment_confirmed', $eventData);
-                $this->notifications->enrollmentConfirmed(array_merge($notifPayload, [
-                    'date' => now()->toDateString(),
-                    'time' => '',
-                ]));
-            }
-
             return response()->json([
                 'message'       => 'Enrollment saved successfully',
                 'enrollment_id' => $enrollment->id,
@@ -145,41 +126,4 @@ class OrbundEnrollmentController extends Controller
         }
     }
 
-    public function confirm(int $id): JsonResponse
-    {
-        $enrollment = Enrollment::find($id);
-
-        if (!$enrollment) {
-            return response()->json(['message' => 'Enrollment not found'], 404);
-        }
-
-        if ($enrollment->status !== 'confirmed') {
-            $enrollment->update(['status' => 'confirmed']);
-
-            $firstStudent = TrialEnrollmentStudent::where('enrollment_id', $enrollment->id)->first();
-            $childName = $firstStudent
-                ? trim($firstStudent->first_name . ' ' . $firstStudent->last_name)
-                : $enrollment->parent_name;
-            $location  = $firstStudent?->location ?? '';
-
-            $this->notifications->fireEventWorkflows('enrollment_confirmed', [
-                'parentName'  => $enrollment->parent_name,
-                'parentEmail' => $enrollment->parent_email,
-                'parentPhone' => $enrollment->parent_phone,
-            ]);
-
-            $this->notifications->enrollmentConfirmed([
-                'parentName'  => $enrollment->parent_name,
-                'parentEmail' => $enrollment->parent_email,
-                'parentPhone' => $enrollment->parent_phone,
-                'childName'   => $childName,
-                'className'   => $firstStudent?->orbund_class_id ?? '',
-                'location'    => $location,
-                'date'        => $enrollment->booking_date?->toDateString() ?? '',
-                'time'        => '',
-            ]);
-        }
-
-        return response()->json(['message' => 'Enrollment confirmed', 'enrollment_id' => $enrollment->id]);
-    }
 }

@@ -17,31 +17,6 @@ class NotificationService
 
     // ─── Public trigger methods ────────────────────────────────────────────────
 
-    public function leadReceived(array $data): void
-    {
-        $name     = $data['name'] ?? 'there';
-        $email    = $data['email'] ?? '';
-        $phone    = $data['phone'] ?? '';
-        $ageGroup = $data['age_group'] ?? '';
-        $location = $data['location'] ?? '';
-        $course   = $data['course'] ?? '';
-
-        SendEmailNotification::dispatch(
-            $this->adminEmail, 'Admin',
-            "[New Lead] - {$course}",
-            $this->buildEmail('Admin', 'New Lead Received', "
-                <table style='width:100%;border-collapse:collapse;font-size:14px;'>
-                  <tr><td style='padding:6px 0;color:#666;'>Name</td><td><strong>{$name}</strong></td></tr>
-                  <tr><td style='padding:6px 0;color:#666;'>Email</td><td>{$email}</td></tr>
-                  <tr><td style='padding:6px 0;color:#666;'>Phone</td><td>{$phone}</td></tr>
-                  <tr><td style='padding:6px 0;color:#666;'>Age Group</td><td>{$ageGroup}</td></tr>
-                  <tr><td style='padding:6px 0;color:#666;'>Location</td><td>{$location}</td></tr>
-                </table>
-            "),
-            'lead_received'
-        );
-    }
-
     public function userRegistered(array $data): void
     {
         $name  = $data['name'] ?? 'there';
@@ -271,6 +246,30 @@ class NotificationService
 
         if ($sendSms && $parentPhone && $smsBody) {
             SendSmsNotification::dispatch($parentPhone, $smsBody, 'trial_no_show');
+        }
+    }
+
+    public function trialConfirmationRequest(array $data): void
+    {
+        $name = $data['parentName'] ?? 'there';
+        $email = $data['parentEmail'] ?? '';
+        $phone = $data['parentPhone'] ?? '';
+        $child = htmlspecialchars($data['childName'] ?? 'your child');
+        $class = htmlspecialchars($data['className'] ?? 'trial class');
+        $details = htmlspecialchars(trim(($data['date'] ?? '').' '.($data['time'] ?? '')));
+        $confirmUrl = htmlspecialchars($data['confirmUrl'] ?? '');
+        $cancelUrl = htmlspecialchars($data['cancelUrl'] ?? '');
+
+        if ($email) {
+            SendEmailNotification::dispatch($email, $name, "Please confirm {$child}'s trial class",
+                $this->buildEmail($name, 'Can you attend tomorrow?', "
+                    <p>Please confirm whether <strong>{$child}</strong> can attend <strong>{$class}</strong> {$details}.</p>
+                    <p style='margin:26px 0;'><a href='{$confirmUrl}' style='background:#15803d;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:10px;'>Confirm</a> <a href='{$cancelUrl}' style='background:#b91c1c;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;'>Cancel</a></p>
+                    <p style='font-size:13px;color:#666;'>For security, your final choice is submitted after you open the link.</p>
+                "), 'trial_confirmation_request');
+        }
+        if ($phone) {
+            SendSmsNotification::dispatch($phone, "Please confirm {$data['childName']}'s {$data['className']} tomorrow. Reply CONFIRM or CANCEL, or choose online: {$data['smsUrl']}", 'trial_confirmation_request');
         }
     }
 

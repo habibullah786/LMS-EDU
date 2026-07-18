@@ -4,6 +4,10 @@ vendor/
 .env.local
 .env.*.local
 *.log
+.phpunit.result.cache
+*.tsbuildinfo
+backend-laravel/database/*.sqlite
+!backend-laravel/database/.gitkeep
 .DS_Store
 .idea/
 .vscode/

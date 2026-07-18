@@ -6,9 +6,11 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\CatalogController;
+use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\WaitlistController;
-use App\Http\Controllers\LeadController;
 use App\Http\Controllers\OrbundEnrollmentController;
 use App\Http\Controllers\OrbundPaymentController;
 use App\Http\Controllers\TrialConfigController;
@@ -26,6 +28,10 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\LeadController;
+use App\Http\Controllers\TrialConfirmationController;
+use App\Http\Controllers\TwilioWebhookController;
 use App\Http\Middleware\AuthenticateApiToken;
 use App\Http\Middleware\EnsureAdmin;
 
@@ -33,12 +39,12 @@ use App\Http\Middleware\EnsureAdmin;
 // Config: locations, age groups, semester ID for the trial booking form
 Route::get('trial/config',  [TrialConfigController::class, 'config'])->name('trial.config');
 Route::get('trial/classes', [TrialConfigController::class, 'classes'])->name('trial.classes');
-// Step 1: capture trial registration lead before class selection
-Route::post('leads', [LeadController::class, 'store'])->name('leads.store');
+Route::post('leads', [LeadController::class, 'store'])->middleware('throttle:30,1')->name('leads.store');
 // Step 5: save enrollment after Orbund save-group-enrollment
 Route::post('trial/enrollment', [OrbundEnrollmentController::class, 'store'])->name('trial.enrollment.store');
-// Step 7: confirm enrollment status after thank-you page loads
-Route::patch('trial/enrollment/{id}/confirm', [OrbundEnrollmentController::class, 'confirm'])->name('trial.enrollment.confirm');
+Route::get('trial/confirmation/{token}', [TrialConfirmationController::class, 'show'])->middleware('throttle:60,1');
+Route::post('trial/confirmation/{token}', [TrialConfirmationController::class, 'update'])->middleware('throttle:20,1');
+Route::post('webhooks/twilio/incoming', [TwilioWebhookController::class, 'incoming'])->middleware('throttle:120,1');
 // Step 6: record payment after Orbund process-payment
 Route::post('trial/payment', [OrbundPaymentController::class, 'store'])->name('trial.payment.store');
 
@@ -58,12 +64,6 @@ Route::get('continuing-education/calendar.ics', [CalendarController::class, 'fee
 
 // Invoices — public view/print
 Route::get('invoices/{invoiceNumber}', [InvoiceController::class, 'show'])->name('invoices.show');
-
-// Lead management (admin only)
-Route::middleware([AuthenticateApiToken::class, EnsureAdmin::class])->group(function () {
-    Route::get('leads', [LeadController::class, 'index'])->name('leads.index');
-    Route::patch('leads/{lead}', [LeadController::class, 'update'])->name('leads.update');
-});
 
 // ─── Auth endpoints ───────────────────────────────────────────────────────────
 // Auth endpoints
@@ -90,20 +90,37 @@ Route::prefix('courses')->group(function () {
     Route::get('programs', [CourseController::class, 'listPrograms'])->name('courses.programs');
     Route::get('departments', [CourseController::class, 'listDepartments'])->name('courses.departments');
     Route::get('/', [CourseController::class, 'listCourses'])->name('courses.list');
-    Route::get('{courseId}', [CourseController::class, 'showCourse'])->name('courses.show');
-    Route::get('{courseId}/classes', [CourseController::class, 'getAvailableClasses'])->name('courses.classes');
     Route::get('by-location/{location}', [CourseController::class, 'getCoursesByLocation'])->name('courses.by-location');
     Route::get('by-age-group/{ageGroup}', [CourseController::class, 'getCoursesByAgeGroup'])->name('courses.by-age-group');
+    Route::get('{courseId}', [CourseController::class, 'showCourse'])->whereNumber('courseId')->name('courses.show');
+    Route::get('{courseId}/classes', [CourseController::class, 'getAvailableClasses'])->whereNumber('courseId')->name('courses.classes');
+});
+
+// Catalog search: Location -> Age Group -> Course -> Curriculum -> Classes
+Route::prefix('catalog')->group(function () {
+    Route::get('classes', [CatalogController::class, 'search'])->name('catalog.search');
+});
+
+// Cart Endpoints (parent must be authenticated)
+Route::prefix('cart')->middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/', [CartController::class, 'show'])->name('cart.show');
+    Route::post('items', [CartController::class, 'addItem'])->name('cart.items.add');
+    Route::delete('items/{id}', [CartController::class, 'removeItem'])->name('cart.items.remove');
+});
+
+// Checkout Endpoint (parent must be authenticated)
+Route::middleware([AuthenticateApiToken::class])->group(function () {
+    Route::post('checkout', [CheckoutController::class, 'checkout'])->name('checkout');
 });
 
 // Payment Endpoints
-Route::prefix('payments')->group(function () {
+Route::post('payments/webhook/razorpay', [PaymentWebhookController::class, 'razorpay'])
+    ->middleware('throttle:120,1')->name('payments.webhook.razorpay');
+Route::prefix('payments')->middleware([AuthenticateApiToken::class])->group(function () {
     Route::post('create/{enrollmentId}', [PaymentController::class, 'createPayment'])->name('payments.create');
     Route::post('process', [PaymentController::class, 'processPayment'])->name('payments.process');
-    Route::get('{paymentId}', [PaymentController::class, 'showPayment'])->name('payments.show');
-    Route::middleware([AuthenticateApiToken::class])->group(function () {
-        Route::get('user/list', [PaymentController::class, 'listUserPayments'])->name('payments.list');
-    });
+    Route::get('user/list', [PaymentController::class, 'listUserPayments'])->name('payments.list');
+    Route::get('{paymentId}', [PaymentController::class, 'showPayment'])->whereNumber('paymentId')->name('payments.show');
 });
 
 // Waitlist Endpoints
@@ -119,23 +136,34 @@ Route::prefix('waitlist')->group(function () {
     });
 });
 
-// Public enrollment endpoints
-Route::prefix('enrollments')->group(function () {
+// Parent enrollment endpoints (always scoped to the authenticated user)
+Route::prefix('enrollments')->middleware([AuthenticateApiToken::class])->group(function () {
     Route::get('/', [EnrollmentController::class, 'index'])->name('enrollments.index');
     Route::get('/stats', [EnrollmentController::class, 'stats'])->name('enrollments.stats');
     Route::get('/filter-options', [EnrollmentController::class, 'filterOptions'])->name('enrollments.filter-options');
-    Route::post('/', [EnrollmentController::class, 'store'])->name('enrollments.store');
     Route::get('{enrollment}', [EnrollmentController::class, 'show'])->name('enrollments.show');
-    Route::put('{enrollment}', [EnrollmentController::class, 'update'])->name('enrollments.update');
-    Route::delete('{enrollment}', [EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
+});
+
+// Enrollment mutations are administrative operations.
+Route::prefix('admin/enrollments')->middleware([AuthenticateApiToken::class, EnsureAdmin::class])->group(function () {
+    Route::post('/', [EnrollmentController::class, 'store'])->name('admin.enrollments.store');
+    Route::put('{enrollment}', [EnrollmentController::class, 'update'])->name('admin.enrollments.update');
+    Route::delete('{enrollment}', [EnrollmentController::class, 'destroy'])->name('admin.enrollments.destroy');
 });
 
 // Admin-only endpoints
 Route::prefix('admin')->middleware([AuthenticateApiToken::class, EnsureAdmin::class])->group(function () {
+    Route::get('dashboard-counts', [AdminController::class, 'dashboardCounts'])->name('admin.dashboard-counts');
     Route::get('enrollments', [AdminController::class, 'enrollments'])->name('admin.enrollments');
     Route::get('enrollments/stats', [AdminController::class, 'stats'])->name('admin.enrollments.stats');
     Route::get('enrollments/filter-options', [AdminController::class, 'filterOptions'])->name('admin.enrollments.filter-options');
     Route::get('users', [AdminController::class, 'users'])->name('admin.users');
+    Route::get('parents', [AdminController::class, 'parents'])->name('admin.parents');
+    Route::get('leads', [LeadController::class, 'index'])->name('admin.leads');
+    Route::patch('leads/{lead}/registration', [LeadController::class, 'updateRegistration'])->name('admin.leads.registration');
+    Route::post('leads/{lead}/calls', [LeadController::class, 'logCall'])->name('admin.leads.calls');
+    Route::patch('leads/{lead}/call-schedule', [LeadController::class, 'scheduleCall'])->name('admin.leads.call-schedule');
+    Route::get('trial-enrollments', [AdminController::class, 'trialEnrollments'])->name('admin.trial-enrollments');
     Route::get('notification-logs', [AdminController::class, 'notificationLogs'])->name('admin.notification-logs');
     Route::get('workflows',              [CustomWorkflowController::class, 'index'])->name('admin.workflows.index');
     Route::post('workflows',             [CustomWorkflowController::class, 'store'])->name('admin.workflows.store');

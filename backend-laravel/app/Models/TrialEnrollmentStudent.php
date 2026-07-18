@@ -26,6 +26,7 @@ class TrialEnrollmentStudent extends Model
 
     protected $casts = [
         'attended' => 'boolean',
+        'class_date' => 'date',
     ];
 
     public function enrollment(): BelongsTo

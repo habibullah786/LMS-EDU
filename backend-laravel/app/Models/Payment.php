@@ -18,6 +18,8 @@ class Payment extends Model
         'processed_at',
         'metadata',
         'payment_plan',
+        'gateway_order_id',
+        'expires_at',
     ];
 
     protected $casts = [
@@ -25,6 +27,7 @@ class Payment extends Model
         'metadata' => 'json',
         'payment_plan' => 'array',
         'processed_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
     public function enrollment(): BelongsTo

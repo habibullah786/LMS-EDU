@@ -1,0 +1,98 @@
+databases:
+  - name: lms-edu-db
+    plan: free
+    databaseName: lms_edu
+    user: lms_edu
+
+services:
+  - type: web
+    name: lms-edu-backend
+    runtime: docker
+    dockerfilePath: ./backend-laravel/Dockerfile
+    dockerContext: ./backend-laravel
+    plan: free
+    envVars:
+      - key: APP_NAME
+        value: LMS-EDU
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: LOG_CHANNEL
+        value: stack
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: lms-edu-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: lms-edu-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: lms-edu-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: lms-edu-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: lms-edu-db
+          property: password
+      - key: CACHE_DRIVER
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: SESSION_DRIVER
+        value: file
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        sync: false
+      - key: SENDGRID_FROM_NAME
+        sync: false
+      - key: SENDGRID_ADMIN_EMAIL
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+      - key: TWILIO_WEBHOOK_URL
+        sync: false
+      - key: ORBUND_BASE_URL
+        sync: false
+      - key: ORBUND_CLIENT_ID
+        sync: false
+      - key: ORBUND_SECRET_KEY
+        sync: false
+      - key: ORBUND_CAMPUS_TYPES
+        sync: false
+      - key: ORBUND_LEVEL_IDS
+        sync: false
+      - key: ORBUND_PROGRAM_IDS
+        sync: false
+      - key: ORBUND_TRIAL_SEMESTER_ID
+        sync: false
+      - key: ORBUND_TIMEOUT
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false

@@ -35,6 +35,11 @@ class User extends Authenticatable
         return $this->hasMany(Student::class);
     }
 
+    public function apiTokens(): HasMany
+    {
+        return $this->hasMany(ApiToken::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

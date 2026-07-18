@@ -45,7 +45,7 @@ class AttendanceController extends Controller
             'course'       => $s->course,
             'location'     => $s->location,
             'curriculum'   => $s->orbund_class_id,
-            'class_date'   => $s->class_date ?: $s->created_at?->toDateString(),
+            'class_date'   => $s->class_date?->toDateString() ?: $s->created_at?->toDateString(),
             'class_time'   => $s->class_time,
             'attended'     => $s->attended,
             'enrollment_id'=> $s->enrollment_id,

@@ -4,26 +4,26 @@ namespace App\Console\Commands;
 
 use App\Models\TrialEnrollmentStudent;
 use App\Services\NotificationService;
+use App\Services\TrialConfirmationService;
 use Illuminate\Console\Command;
 
 class SendDailyReminders extends Command
 {
     protected $signature   = 'notifications:send-reminders {--dry-run : Log what would be sent without dispatching}';
-    protected $description = 'Send 24-hour class reminder notifications to parents of confirmed trial enrollments';
+    protected $description = 'Ask parents to confirm or cancel pending trial enrollments 24 hours before class';
 
-    public function handle(NotificationService $notifications): int
+    public function handle(NotificationService $notifications, TrialConfirmationService $confirmations): int
     {
         $dryRun   = $this->option('dry-run');
         $tomorrow = now()->addDay()->toDateString();
 
-        // Find confirmed trial students whose class is tomorrow
         $students = TrialEnrollmentStudent::whereDate('class_date', $tomorrow)
-            ->whereHas('enrollment', fn($q) => $q->where('status', 'confirmed'))
+            ->whereHas('enrollment', fn($q) => $q->where('status', 'pending')->whereNull('confirmation_request_sent_at'))
             ->with('enrollment')
-            ->get();
+            ->get()->unique('enrollment_id');
 
         if ($students->isEmpty()) {
-            $this->info("No confirmed trial classes found for {$tomorrow}.");
+            $this->info("No pending trial confirmations found for {$tomorrow}.");
             return Command::SUCCESS;
         }
 
@@ -40,6 +40,7 @@ class SendDailyReminders extends Command
                 'className'   => $student->orbund_class_id,
                 'location'    => $student->location ?? '',
                 'time'        => $student->class_time ?? '',
+                'date'        => $student->class_date?->toDateString() ?? $tomorrow,
             ];
 
             if ($dryRun) {
@@ -47,8 +48,14 @@ class SendDailyReminders extends Command
                 continue;
             }
 
-            $notifications->classReminder($data);
-            $this->line("  Reminder sent to: {$data['parentEmail']} for {$data['childName']}");
+            $token = $confirmations->issueToken($enrollment);
+            $base = rtrim(config('services.frontend_url'), '/').'/trial/confirmation?token='.urlencode($token);
+            $data['confirmUrl'] = $base.'&action=confirm&channel=email_link';
+            $data['cancelUrl'] = $base.'&action=cancel&channel=email_link';
+            $data['smsUrl'] = $base.'&channel=sms_link';
+            $enrollment->update(['confirmation_request_sent_at' => now()]);
+            $notifications->trialConfirmationRequest($data);
+            $this->line("  Confirmation request sent to: {$data['parentEmail']} for {$data['childName']}");
         }
 
         $this->info('Done.');

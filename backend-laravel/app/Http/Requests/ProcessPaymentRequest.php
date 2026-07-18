@@ -15,10 +15,10 @@ class ProcessPaymentRequest extends FormRequest
     {
         return [
             'enrollment_id' => ['required', 'integer', 'exists:enrollments,id'],
-            'payment_method' => ['required', 'string', 'in:razorpay,stripe,upi'],
-            'razorpay_payment_id' => ['nullable', 'string'],
-            'razorpay_order_id' => ['nullable', 'string'],
-            'razorpay_signature' => ['nullable', 'string'],
+            'payment_method' => ['required', 'string', 'in:razorpay'],
+            'razorpay_payment_id' => ['required', 'string', 'max:255'],
+            'razorpay_order_id' => ['required', 'string', 'max:255'],
+            'razorpay_signature' => ['required', 'string', 'size:64'],
         ];
     }
 }

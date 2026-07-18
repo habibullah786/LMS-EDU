@@ -3,106 +3,111 @@
 namespace App\Http\Controllers;
 
 use App\Models\Lead;
-use App\Services\NotificationService;
-use Illuminate\Http\Request;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LeadController extends Controller
 {
-    public function __construct(private NotificationService $notifications) {}
-
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name'                => 'required|string|max:255',
-            'email'               => 'required|email|max:255',
-            'phone'               => 'required|string|max:30',
-            'age_group'           => 'nullable|string|max:50',
-            'orbund_program_id'   => 'nullable|string|max:20',
-            'location'            => 'nullable|string|max:100',
-            'orbund_campus_type'  => 'nullable|string|max:10',
-            'level_id'            => 'nullable|string|max:20',
-            'semester_id'         => 'nullable|string|max:20',
-            'source'              => 'nullable|string|max:100',
-            'page_url'            => 'nullable|string|max:100',
-            'orbund_session_id'   => 'nullable|string|max:255',
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
+            'age_group' => ['nullable', 'string', 'max:100'],
+            'course' => ['nullable', 'string', 'max:100'],
+            'location' => ['nullable', 'string', 'max:100'],
+            'orbund_program_id' => ['nullable', 'string', 'max:30'],
+            'orbund_campus_type' => ['nullable', 'string', 'max:30'],
+            'level_id' => ['nullable', 'string', 'max:30'],
+            'semester_id' => ['nullable', 'string', 'max:30'],
+            'source' => ['required', 'string', 'max:100'],
+            'page_url' => ['nullable', 'string', 'max:255'],
+            'orbund_session_id' => ['nullable', 'string', 'max:255'],
         ]);
 
-        // Upsert by email+source so duplicate form submits don't create duplicate leads
+        $existingUser = User::whereRaw('LOWER(email) = ?', [strtolower($data['email'])])->first();
+        $existingLead = Lead::where('email', strtolower($data['email']))->where('source', $data['source'])->first();
+        $previousUpdatedAt = $existingLead?->updated_at;
+        $registrationChanged = $existingLead && $existingLead->is_registered !== (bool) $existingUser;
+
         $lead = Lead::updateOrCreate(
-            ['email' => $data['email'], 'source' => $data['source'] ?? null],
-            $data
+            ['email' => strtolower($data['email']), 'source' => $data['source']],
+            array_merge($data, [
+                'is_registered' => (bool) $existingUser,
+                'registered_at' => $existingUser ? now() : null,
+                'user_id' => $existingUser?->id,
+            ]),
         );
 
-        $this->notifications->fireEventWorkflows('lead_received', [
-            'parentName'  => $data['name'],
-            'parentEmail' => $data['email'],
-            'parentPhone' => $data['phone'],
-        ]);
+        // For leads, updated_at represents registration-status changes only.
+        if ($existingLead && !$registrationChanged && $previousUpdatedAt) {
+            DB::table('leads')->where('id', $lead->id)->update(['updated_at' => $previousUpdatedAt]);
+            $lead->refresh();
+        }
 
-        $source = $data['source'] ?? '';
-        $course = str_contains($source, 'coding') ? 'Coding' : (str_contains($source, 'robotics') ? 'Robotics' : '');
-
-        $this->notifications->leadReceived([
-            'name'      => $data['name'],
-            'email'     => $data['email'],
-            'phone'     => $data['phone'],
-            'age_group' => $data['age_group'] ?? '',
-            'location'  => $data['location'] ?? '',
-            'course'    => $course,
-            'admin_email' => false, // admin notified at enrollment time when curriculum is known
-        ]);
-
-        return response()->json([
-            'message' => 'Lead captured successfully',
-            'lead_id' => $lead->id,
-        ], 201);
+        return response()->json(['message' => 'Lead captured', 'lead_id' => $lead->id, 'is_registered' => $lead->is_registered], 201);
     }
 
     public function index(Request $request): JsonResponse
     {
-        $query = Lead::query();
-
-        if ($request->filled('status') && $request->status !== 'All') {
-            $query->where('status', $request->status);
+        $query = Lead::with(['user', 'reminderCalls.operator:id,name', 'reminderEmails'])->latest();
+        if ($request->has('is_registered')) {
+            $query->where('is_registered', $request->boolean('is_registered'));
         }
-
-        if ($request->filled('source') && $request->source !== 'All') {
-            $query->where('source', $request->source);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-            });
-        }
-
-        $leads = $query->orderBy('created_at', 'desc')
-                       ->paginate($request->get('per_page', 15));
-
-        return response()->json($leads);
+        return response()->json($query->paginate(min((int) $request->get('per_page', 100), 100)));
     }
 
-    public function show(Lead $lead): JsonResponse
+    public function updateRegistration(Request $request, Lead $lead): JsonResponse
     {
-        return response()->json($lead->load('enrollments'));
-    }
-
-    public function update(Request $request, Lead $lead): JsonResponse
-    {
-        $data = $request->validate([
-            'status' => 'required|in:new,contacted,enrolled,lost',
-            'notes'  => 'nullable|string',
+        $data = $request->validate(['is_registered' => ['required', 'boolean']]);
+        $lead->update([
+            'is_registered' => $data['is_registered'],
+            'registered_at' => $data['is_registered'] ? ($lead->registered_at ?? now()) : null,
+            'user_id' => $data['is_registered'] ? ($lead->user_id ?? \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($lead->email)])->value('id')) : null,
         ]);
 
-        $lead->update($data);
-
         return response()->json([
-            'message' => 'Lead updated successfully',
-            'lead'    => $lead,
+            'message' => 'Lead registration status updated',
+            'lead' => $lead->fresh()->load(['reminderCalls.operator:id,name', 'reminderEmails']),
+        ]);
+    }
+
+    public function logCall(Request $request, Lead $lead): JsonResponse
+    {
+        $data = $request->validate([
+            'called_at' => ['required', 'date', 'before_or_equal:now'],
+        ]);
+
+        DB::transaction(function () use ($request, $lead, $data) {
+            $calledAt = \Illuminate\Support\Carbon::parse($data['called_at']);
+            $lead->reminderCalls()->create(['called_by' => $request->user()->id, 'called_at' => $calledAt]);
+            DB::table('leads')->where('id', $lead->id)->update([
+                'reminder_call_count' => $lead->reminderCalls()->count(),
+                'reminder_call_time' => $calledAt,
+                'scheduled_call_time' => $lead->scheduled_call_time && $calledAt->gte($lead->scheduled_call_time)
+                    ? null : $lead->scheduled_call_time,
+            ]);
+        });
+        return response()->json([
+            'message' => 'Reminder call logged',
+            'lead' => $lead->fresh()->load(['reminderCalls.operator:id,name', 'reminderEmails']),
+        ]);
+    }
+
+    public function scheduleCall(Request $request, Lead $lead): JsonResponse
+    {
+        $data = $request->validate([
+            'scheduled_call_time' => ['nullable', 'date', 'after:now'],
+        ]);
+        DB::table('leads')->where('id', $lead->id)->update([
+            'scheduled_call_time' => $data['scheduled_call_time'] ?? null,
+        ]);
+        return response()->json([
+            'message' => 'Next call schedule updated',
+            'lead' => $lead->fresh()->load(['reminderCalls.operator:id,name', 'reminderEmails']),
         ]);
     }
 }

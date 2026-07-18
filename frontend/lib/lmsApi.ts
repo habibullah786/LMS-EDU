@@ -1,4 +1,6 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+import { API_BASE_URL } from './apiClient';
+
+const BASE = API_BASE_URL;
 
 function authHeaders(token?: string | null): HeadersInit {
   return {
@@ -8,6 +10,20 @@ function authHeaders(token?: string | null): HeadersInit {
 }
 
 export const lmsApi = {
+  async captureLead(payload: {
+    name: string; email: string; phone: string; age_group?: string; course?: string;
+    location?: string; orbund_program_id?: string; orbund_campus_type?: string;
+    level_id?: string; semester_id?: string; source: string; page_url?: string;
+    orbund_session_id?: string;
+  }) {
+    const res = await fetch(`${BASE}/leads`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
+    const contentType = res.headers.get('content-type') || '';
+    const data = contentType.includes('application/json') ? await res.json() : null;
+    if (!res.ok) throw new Error(data?.message || `Unable to save your details (API ${res.status}).`);
+    if (!data) throw new Error('The API returned an invalid response.');
+    return data as { lead_id: number; is_registered: boolean };
+  },
+
   // ── Trial config (Step 1 form dropdowns) ─────────────────────────────────
   async trialConfig(): Promise<{
     locations: Array<{ id: number; name: string; orbund_campus_type: string }>;
@@ -31,8 +47,7 @@ export const lmsApi = {
       } catch { /* fall through */ }
     }
 
-    // Fallback: trial-flow users have lms_token but no 'user' key
-    const token = localStorage.getItem('lms_token') || localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     if (!token) return null;
     const res = await fetch(`${BASE}/auth/me`, { headers: authHeaders(token) });
     if (!res.ok) return null;
@@ -46,7 +61,9 @@ export const lmsApi = {
       headers: authHeaders(),
       body: JSON.stringify({ email, password }),
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || 'Login failed');
+    return data;
   },
 
   async register(name: string, email: string, password: string, phone?: string) {
@@ -55,30 +72,9 @@ export const lmsApi = {
       headers: authHeaders(),
       body: JSON.stringify({ name, email, password, phone }),
     });
-    return res.json();
-  },
-
-  // ── Leads (Step 1) ────────────────────────────────────────────────────────
-  async saveLead(payload: {
-    name: string;
-    email: string;
-    phone: string;
-    age_group?: string;
-    orbund_program_id?: string;
-    location?: string;
-    orbund_campus_type?: string;
-    level_id?: string;
-    semester_id?: string;
-    source?: string;
-    page_url?: string;
-    orbund_session_id?: string;
-  }) {
-    const res = await fetch(`${BASE}/leads`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || 'Registration failed');
+    return data;
   },
 
   // ── Enrollment (Step 5) ───────────────────────────────────────────────────
@@ -88,7 +84,6 @@ export const lmsApi = {
     parent_phone?: string;
     total_amount?: number;
     source?: string;
-    lead_id?: number | null;
     trial_ref_id?: string | null;
     location?: string;
     course?: string;
@@ -127,11 +122,4 @@ export const lmsApi = {
   },
 
   // ── Confirm enrollment (Step 7) ───────────────────────────────────────────
-  async confirmEnrollment(enrollmentId: number) {
-    const res = await fetch(`${BASE}/trial/enrollment/${enrollmentId}/confirm`, {
-      method: 'PATCH',
-      headers: authHeaders(),
-    });
-    return res.json();
-  },
 };

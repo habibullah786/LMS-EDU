@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\Lead;
 
 class Enrollment extends Model
 {
@@ -23,7 +22,11 @@ class Enrollment extends Model
         'group_reference_id',
         'trial_ref_id',
         'source',
-        'lead_id',
+        'confirmation_token_hash',
+        'confirmation_token_expires_at',
+        'confirmation_request_sent_at',
+        'confirmation_responded_at',
+        'confirmation_response_channel',
     ];
 
     protected $casts = [
@@ -31,6 +34,9 @@ class Enrollment extends Model
         'enrollment_date' => 'datetime',
         'total_amount' => 'decimal:2',
         'is_paid' => 'boolean',
+        'confirmation_token_expires_at' => 'datetime',
+        'confirmation_request_sent_at' => 'datetime',
+        'confirmation_responded_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -58,11 +64,6 @@ class Enrollment extends Model
         return $this->belongsTo(CourseClass::class, 'class_id');
     }
 
-    public function lead(): BelongsTo
-    {
-        return $this->belongsTo(Lead::class);
-    }
-
     public function scopeByStatus($query, $status)
     {
         if ($status && $status !== 'All') {
@@ -74,7 +75,7 @@ class Enrollment extends Model
     public function scopeByLocation($query, $location)
     {
         if ($location && $location !== 'All') {
-            return $query->whereHas('students', function ($q) {
+            return $query->whereHas('students', function ($q) use ($location) {
                 $q->where('location', $location);
             });
         }
@@ -84,7 +85,7 @@ class Enrollment extends Model
     public function scopeByCourse($query, $course)
     {
         if ($course && $course !== 'All') {
-            return $query->whereHas('students', function ($q) {
+            return $query->whereHas('students', function ($q) use ($course) {
                 $q->where('course', $course);
             });
         }

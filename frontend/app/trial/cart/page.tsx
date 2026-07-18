@@ -35,7 +35,6 @@ export default function CartPage() {
   const [cartStudents, setCartStudents] = useState<CartStudent[]>([]);
   const [cartLines, setCartLines] = useState<CartLine[]>([]);
   const [summary, setSummary] = useState<CartSummary>({});
-  const [coupon, setCoupon] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -44,16 +43,16 @@ export default function CartPage() {
     if (!raw) { router.replace('/trial/classes'); return; }
     const students: CartStudent[] = JSON.parse(raw);
     setCartStudents(students);
-    fetchCart(students, '');
+    fetchCart(students);
   }, [router]);
 
-  async function fetchCart(students: CartStudent[], couponCode: string) {
+  async function fetchCart(students: CartStudent[]) {
     const sessionId = localStorage.getItem('orbund_session_id') || '';
     setLoading(true);
     try {
       const data = await orbund.displayCart(sessionId, {
         displayCartStudents: students,
-        couponCode,
+        couponCode: '',
       });
       // Merge classes + enrolledClasses (matches WordPress reference)
       const classArr: CartLine[] = data.classes || [];
@@ -61,9 +60,9 @@ export default function CartPage() {
       const merged = dedupeByClassId([...classArr, ...enrolledArr]);
       setCartLines(merged);
       setSummary(data.cartSummary || {});
-      if (data.cartSummary?.couponCode) setCoupon(data.cartSummary.couponCode);
     } catch {
       // Fall back to local display
+      setError('Failed to load your cart. Please try again.');
       const lines = students.map(s => ({
         classId: s.classIds[0],
         session: s._session || s.classIds[0],
@@ -89,11 +88,6 @@ export default function CartPage() {
       }
     }
     return Array.from(map.values());
-  }
-
-  async function applyCoupon() {
-    if (!coupon.trim()) return;
-    await fetchCart(cartStudents, coupon);
   }
 
   return (
@@ -167,23 +161,6 @@ export default function CartPage() {
                     <span>Total</span><span>{summary.total}</span>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Coupon */}
-            {!summary.couponCode && (
-              <div className="flex gap-2 mb-6">
-                <input
-                  type="text" value={coupon} onChange={e => setCoupon(e.target.value)}
-                  placeholder="Coupon code (optional)"
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <button
-                  onClick={applyCoupon}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg"
-                >
-                  Apply
-                </button>
               </div>
             )}
 

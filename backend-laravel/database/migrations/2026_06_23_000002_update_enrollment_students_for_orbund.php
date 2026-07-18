@@ -12,6 +12,21 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->dropForeign(['student_id']);
+                $table->dropUnique(['enrollment_id', 'student_id', 'class_id']);
+            });
+
+            DB::statement('ALTER TABLE enrollment_students ALTER COLUMN student_id DROP NOT NULL');
+            DB::statement('ALTER TABLE enrollment_students DROP CONSTRAINT IF EXISTS enrollment_students_course_check');
+            DB::statement('ALTER TABLE enrollment_students DROP CONSTRAINT IF EXISTS enrollment_students_location_check');
+            DB::statement('ALTER TABLE enrollment_students DROP CONSTRAINT IF EXISTS enrollment_students_type_check');
+            DB::statement("ALTER TABLE enrollment_students ALTER COLUMN instructor SET DEFAULT ''");
+
+            return;
+        }
+
         DB::statement('PRAGMA foreign_keys = OFF');
 
         Schema::create('enrollment_students_new', function (Blueprint $table) {
@@ -49,6 +64,21 @@ return new class extends Migration {
 
     public function down(): void
     {
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE enrollment_students ALTER COLUMN instructor DROP DEFAULT');
+            DB::statement("ALTER TABLE enrollment_students ADD CONSTRAINT enrollment_students_course_check CHECK (course IN ('Coding', 'Robotics'))");
+            DB::statement("ALTER TABLE enrollment_students ADD CONSTRAINT enrollment_students_location_check CHECK (location IN ('Delhi', 'Bengaluru', 'Kolkata'))");
+            DB::statement("ALTER TABLE enrollment_students ADD CONSTRAINT enrollment_students_type_check CHECK (type IN ('Trial', 'Paid'))");
+            DB::statement('ALTER TABLE enrollment_students ALTER COLUMN student_id SET NOT NULL');
+
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
+                $table->unique(['enrollment_id', 'student_id', 'class_id']);
+            });
+
+            return;
+        }
+
         DB::statement('PRAGMA foreign_keys = OFF');
 
         Schema::create('enrollment_students_old', function (Blueprint $table) {

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { orbund } from '@/lib/orbund';
-import { lmsApi } from '@/lib/lmsApi';
 
 interface ThankYouClass {
   name: string;
@@ -26,12 +25,6 @@ export default function ThankYouPage() {
     if (reg) {
       const { email } = JSON.parse(reg);
       setParentEmail(email);
-    }
-
-    // Confirm enrollment in our DB (fire-and-forget)
-    const enrollmentId = localStorage.getItem('lms_enrollment_id');
-    if (enrollmentId) {
-      lmsApi.confirmEnrollment(Number(enrollmentId)).catch(() => {});
     }
 
     (async () => {
@@ -89,7 +82,7 @@ export default function ThankYouPage() {
   function clearAndGoHome() {
     const keysToRemove = [
       'orbund_session_id', 'orbund_enrollment_id', 'trial_registration',
-      'lms_lead_id', 'lms_enrollment_id', 'lms_token', 'lms_user_id',
+      'lms_enrollment_id', 'lms_token', 'lms_user_id',
     ];
     keysToRemove.forEach(k => localStorage.removeItem(k));
     sessionStorage.clear();
@@ -102,11 +95,11 @@ export default function ThankYouPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-3xl font-bold text-gray-900">You're registered!</h1>
-          <p className="text-gray-500 mt-2">Step 7 of 7 — Registration complete</p>
+          <h1 className="text-3xl font-bold text-gray-900">Your trial is booked!</h1>
+          <p className="text-gray-500 mt-2">Registration complete — status pending</p>
           {parentEmail && (
             <p className="text-gray-600 mt-3">
-              A confirmation has been sent to <strong>{parentEmail}</strong>
+              Booking details have been sent to <strong>{parentEmail}</strong>
             </p>
           )}
         </div>
@@ -145,7 +138,7 @@ export default function ThankYouPage() {
           </div>
         ) : (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 text-center text-green-700">
-            Your trial class has been booked successfully. We'll be in touch with details!
+            Your trial class has been booked successfully. We&apos;ll be in touch with details!
           </div>
         )}
 
@@ -154,7 +147,7 @@ export default function ThankYouPage() {
           <h3 className="font-semibold text-indigo-900 mb-2">What happens next?</h3>
           <ul className="text-sm text-indigo-800 space-y-1">
             <li>✔ Check your email for a confirmation</li>
-            <li>✔ Our team will contact you before the class</li>
+            <li>✔ About 24 hours before class, confirm by email link, SMS link, or SMS reply</li>
             <li>✔ Bring your child 5 minutes early on class day</li>
           </ul>
         </div>

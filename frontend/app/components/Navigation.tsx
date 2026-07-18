@@ -2,11 +2,18 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
 export default function Navigation() {
   const { isAuthenticated, user, logout, openLoginModal } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Admin and parent dashboards have their own internal header/nav.
+  if (pathname?.startsWith('/admin') || pathname?.startsWith('/parent')) {
+    return null;
+  }
 
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50 print:hidden">
