@@ -24,6 +24,12 @@ services:
         sync: false
       - key: APP_KEY
         sync: false
+      - key: ADMIN_NAME
+        value: LMS Administrator
+      - key: ADMIN_EMAIL
+        value: admin@lmsedu.com
+      - key: ADMIN_PASSWORD
+        sync: false
       - key: LOG_CHANNEL
         value: stack
       - key: DB_CONNECTION
