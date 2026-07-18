@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             SelfRegistrationSeeder::class,
             TrialClassesSeeder::class,
             EnrollmentSeeder::class,
+            OperationalDemoSeeder::class,
         ]);
     }
 }

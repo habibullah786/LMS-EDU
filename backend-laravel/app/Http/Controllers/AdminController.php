@@ -23,7 +23,9 @@ class AdminController extends Controller
             'pending_enrollments' => Enrollment::where('status', 'pending')->count(),
             'leads' => Lead::count(),
             'trial_enrollments' => Enrollment::where(function ($query) {
-                $query->where('source', 'like', '%trial%')->orWhereHas('trialStudents');
+                $query->where('source', 'like', '%trial%')
+                    ->orWhereHas('trialStudents')
+                    ->orWhereHas('students', fn ($student) => $student->where('type', 'Trial'));
             })->count(),
             'parents' => User::where('role', 'parent')->count(),
             'users' => User::count(),
@@ -114,7 +116,9 @@ class AdminController extends Controller
     {
         return response()->json(Enrollment::with(['students', 'trialStudents'])
             ->where(function ($query) {
-                $query->where('source', 'like', '%trial%')->orWhereHas('trialStudents');
+                $query->where('source', 'like', '%trial%')
+                    ->orWhereHas('trialStudents')
+                    ->orWhereHas('students', fn ($student) => $student->where('type', 'Trial'));
             })->latest()->paginate(min((int) $request->get('per_page', 100), 100)));
     }
 
