@@ -17,12 +17,15 @@ class Payment extends Model
         'status',
         'processed_at',
         'metadata',
+        'gateway_order_id',
+        'expires_at',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'metadata' => 'json',
         'processed_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
     public function enrollment(): BelongsTo

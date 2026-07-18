@@ -2,6 +2,14 @@
 
 Full-stack LMS for Exceed Robotics (exceedrobotics.com). Kids take Robotics or Coding classes.
 
+## Current security and payment behavior
+
+- Parent enrollment and payment records require an expiring bearer token and are owner-scoped.
+- Enrollment updates and deletes require an administrator token.
+- Paid seats are reserved for 15 minutes; `php artisan payments:expire-reservations` releases expired reservations.
+- Razorpay callbacks and webhooks use HMAC verification. Configure `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET`.
+- The canonical local Laravel API URL is `http://localhost:8000/api`.
+
 ## Tech Stack
 
 | Layer | Technology |

@@ -2,14 +2,39 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\NotificationLog;
+use App\Models\Program;
 use App\Models\User;
+use App\Models\Lead;
+use App\Models\SchoolClass;
+use App\Models\CustomWorkflow;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class AdminController extends Controller
 {
+    public function dashboardCounts(): JsonResponse
+    {
+        return response()->json([
+            'enrollments' => Enrollment::count(),
+            'pending_enrollments' => Enrollment::where('status', 'pending')->count(),
+            'leads' => Lead::count(),
+            'trial_enrollments' => Enrollment::where(function ($query) {
+                $query->where('source', 'like', '%trial%')->orWhereHas('trialStudents');
+            })->count(),
+            'parents' => User::where('role', 'parent')->count(),
+            'users' => User::count(),
+            'classes' => SchoolClass::count(),
+            'notification_logs' => NotificationLog::count(),
+            'notification_logs_sent' => NotificationLog::where('status', 'sent')->count(),
+            'workflows' => CustomWorkflow::count(),
+            'revenue' => (float) Payment::where('status', 'completed')->sum('amount'),
+        ]);
+    }
+
     public function enrollments(Request $request): JsonResponse
     {
         $query = Enrollment::with(['students', 'trialStudents']);
@@ -67,8 +92,8 @@ class AdminController extends Controller
     public function filterOptions(): JsonResponse
     {
         return response()->json([
-            'locations' => ['Delhi', 'Bengaluru', 'Kolkata'],
-            'courses' => ['Coding', 'Robotics'],
+            'locations' => Department::pluck('location')->filter()->unique()->values(),
+            'courses' => Program::pluck('name')->filter()->unique()->values(),
             'statuses' => ['confirmed', 'pending', 'cancelled'],
             'types' => ['Trial', 'Paid'],
         ]);
@@ -77,6 +102,20 @@ class AdminController extends Controller
     public function users(): JsonResponse
     {
         return response()->json(User::select('id', 'name', 'email', 'phone', 'role', 'created_at')->get());
+    }
+
+    public function parents(): JsonResponse
+    {
+        return response()->json(User::where('role', 'parent')
+            ->select('id', 'name', 'email', 'phone', 'role', 'created_at')->latest()->get());
+    }
+
+    public function trialEnrollments(Request $request): JsonResponse
+    {
+        return response()->json(Enrollment::with(['students', 'trialStudents'])
+            ->where(function ($query) {
+                $query->where('source', 'like', '%trial%')->orWhereHas('trialStudents');
+            })->latest()->paginate(min((int) $request->get('per_page', 100), 100)));
     }
 
     public function notificationLogs(Request $request): JsonResponse

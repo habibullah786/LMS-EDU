@@ -20,6 +20,8 @@ services:
         value: false
       - key: APP_URL
         sync: false
+      - key: FRONTEND_URL
+        sync: false
       - key: APP_KEY
         sync: false
       - key: LOG_CHANNEL
@@ -70,6 +72,8 @@ services:
         sync: false
       - key: TWILIO_FROM_NUMBER
         sync: false
+      - key: TWILIO_WEBHOOK_URL
+        sync: false
       - key: ORBUND_BASE_URL
         sync: false
       - key: ORBUND_CLIENT_ID
@@ -85,4 +89,10 @@ services:
       - key: ORBUND_TRIAL_SEMESTER_ID
         sync: false
       - key: ORBUND_TIMEOUT
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
         sync: false

@@ -1,9 +1,11 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const BASE = API_BASE_URL;
 
 interface SchoolClass {
   id: number;

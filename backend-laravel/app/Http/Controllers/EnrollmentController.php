@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\EnrollmentStudent;
+use App\Models\Program;
 use App\Http\Requests\StoreEnrollmentRequest;
 use App\Http\Requests\UpdateEnrollmentRequest;
 use Illuminate\Http\Request;
@@ -16,7 +18,8 @@ class EnrollmentController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Enrollment::with(['students', 'trialStudents']);
+        $query = Enrollment::with(['students', 'trialStudents'])
+            ->where('user_id', $request->user()->id);
 
         // Apply filters
         if ($request->has('status') && $request->status !== 'All') {
@@ -44,12 +47,13 @@ class EnrollmentController extends Controller
         }
 
         // Sorting
-        $sortBy = $request->get('sort_by', 'booking_date');
-        $sortOrder = $request->get('sort_order', 'desc');
+        $sortBy = in_array($request->get('sort_by'), ['booking_date', 'status', 'total_amount', 'created_at'], true)
+            ? $request->get('sort_by') : 'booking_date';
+        $sortOrder = $request->get('sort_order') === 'asc' ? 'asc' : 'desc';
         $query->orderBy($sortBy, $sortOrder);
 
         // Pagination
-        $perPage = $request->get('per_page', 15);
+        $perPage = min(max((int) $request->get('per_page', 15), 1), 100);
         $enrollments = $query->paginate($perPage);
 
         return response()->json($enrollments);
@@ -60,7 +64,7 @@ class EnrollmentController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        $query = Enrollment::with('students');
+        $query = Enrollment::with('students')->where('user_id', $request->user()->id);
 
         // Apply status filter
         if ($request->has('status') && $request->status !== 'All') {
@@ -84,8 +88,8 @@ class EnrollmentController extends Controller
     public function filterOptions(): JsonResponse
     {
         return response()->json([
-            'locations' => ['Delhi', 'Bengaluru', 'Kolkata'],
-            'courses' => ['Coding', 'Robotics'],
+            'locations' => Department::pluck('location')->filter()->unique()->values(),
+            'courses' => Program::pluck('name')->filter()->unique()->values(),
             'statuses' => ['confirmed', 'pending', 'cancelled'],
             'types' => ['Trial', 'Paid'],
         ]);
@@ -98,7 +102,7 @@ class EnrollmentController extends Controller
     {
         try {
             $enrollment = Enrollment::create([
-                'user_id' => auth()->id() ?? 1,
+                'user_id' => $request->user()->id,
                 'parent_name' => $request->parent_name,
                 'parent_email' => $request->parent_email,
                 'parent_phone' => $request->parent_phone,
@@ -139,6 +143,7 @@ class EnrollmentController extends Controller
      */
     public function show(Enrollment $enrollment): JsonResponse
     {
+        abort_unless($enrollment->user_id === request()->user()->id, 404);
         return response()->json($enrollment->load('students'));
     }
 
@@ -148,7 +153,12 @@ class EnrollmentController extends Controller
     public function update(UpdateEnrollmentRequest $request, Enrollment $enrollment): JsonResponse
     {
         try {
-            $enrollment->update($request->validated());
+            $data = $request->validated();
+            if (isset($data['status']) && $data['status'] !== $enrollment->status) {
+                $data['confirmation_responded_at'] = now();
+                $data['confirmation_response_channel'] = 'admin';
+            }
+            $enrollment->update($data);
 
             return response()->json([
                 'message' => 'Enrollment updated successfully',

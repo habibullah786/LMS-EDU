@@ -1,10 +1,12 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 import { useAuth } from '@/app/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, FormEvent } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002/api';
+const API_URL = API_BASE_URL;
 
 type View = 'overview' | 'enrollments' | 'profile';
 
@@ -162,7 +164,7 @@ export default function ParentDashboard() {
   useEffect(() => {
     if (!user) return;
     setEnrollLoading(true);
-    const token = localStorage.getItem('auth_token') || localStorage.getItem('lms_token');
+    const token = localStorage.getItem('auth_token');
 
     fetch(`${API_URL}/enrollments`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
 
 class TwilioService
 {
@@ -52,6 +53,23 @@ class TwilioService
             Log::error('[Twilio] Exception: '.$e->getMessage());
             return 'failed';
         }
+    }
+
+    public function validWebhookSignature(Request $request): bool
+    {
+        $signature = $request->header('X-Twilio-Signature', '');
+        if ($this->token === '' || $signature === '') return false;
+        $url = config('services.twilio.webhook_url') ?: $request->fullUrl();
+        $payload = $request->post();
+        ksort($payload, SORT_STRING);
+        foreach ($payload as $key => $value) $url .= $key.(is_array($value) ? implode('', $value) : $value);
+        return hash_equals(base64_encode(hash_hmac('sha1', $url, $this->token, true)), $signature);
+    }
+
+    public function normalizePhone(string $phone): string
+    {
+        $digits = preg_replace('/\D/', '', $phone) ?? '';
+        return substr($digits, -10);
     }
 
     private function toE164(string $phone): ?string

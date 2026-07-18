@@ -1,16 +1,9 @@
 'use client';
 
 import { useAuth } from '@/app/context/AuthContext';
-import { useRouter } from 'next/navigation';
 
 export default function Home() {
-  const { isAuthenticated, openLoginModal } = useAuth();
-  const router = useRouter();
-
-  if (isAuthenticated) {
-    router.push('/parent/dashboard');
-    return null;
-  }
+  const { openLoginModal } = useAuth();
 
   return (
     <div className="min-h-screen bg-white">

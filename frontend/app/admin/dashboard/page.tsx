@@ -1,12 +1,14 @@
 'use client';
 
+import { API_BASE_URL } from '@/lib/apiClient';
+
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-type View = 'dashboard' | 'enrollments' | 'users' | 'classes' | 'settings' | 'notifications' | 'workflows' | 'attendance';
+type View = 'dashboard' | 'leads' | 'trial_enrollments' | 'parents' | 'users' | 'classes' | 'settings' | 'notifications' | 'workflows' | 'attendance';
 type SettingsSection = 'locations' | 'courses' | 'ageGroups' | 'types';
 type ConfigItem = { id: string; value: string; label: string };
 
@@ -24,15 +26,20 @@ type Student = {
 type Enrollment = {
   id: string; parentName: string; parentPhone: string; parentEmail: string;
   students: Student[]; totalAmount: number; bookingDate: string; status: string;
+  confirmationRequestSentAt?: string; confirmationRespondedAt?: string; confirmationResponseChannel?: string;
 };
 
 type Filters = { location: string; course: string; status: string; dateRange: string };
+type DashboardCounts = { enrollments: number; pending_enrollments: number; leads: number; trial_enrollments: number; parents: number; users: number; classes: number; notification_logs: number; notification_logs_sent: number; workflows: number; revenue: number };
 
 type AppUser = { id: number; name: string; email: string; phone: string | null; role: string; created_at: string };
+type LeadReminderCall = { id: number; called_at: string; operator?: { id: number; name: string } | null };
+type LeadReminderEmail = { id: number; reminder_day: number; sent_at: string };
+type Lead = { id: number; name: string; email: string; phone: string; age_group: string | null; course: string | null; location: string | null; source: string; is_registered: boolean; reminder_call_count: number; reminder_call_time: string | null; reminder_calls: LeadReminderCall[]; scheduled_call_time: string | null; reminder_email_count: number; reminder_email_time: string | null; reminder_emails: LeadReminderEmail[]; next_reminder_email_at: string | null; created_at: string; updated_at: string };
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_URL = API_BASE_URL;
 
 const KEYS = {
   locations: 'exceed_config_locations',
@@ -106,16 +113,6 @@ const BLANK_CUSTOM_WF: Omit<CustomWorkflow, 'id' | 'createdAt'> = {
 };
 
 const WORKFLOWS = [
-  {
-    key: 'lead_received',
-    label: 'Lead Received',
-    desc: 'Parent submits an enquiry form',
-    channels: [
-      { ch: 'Email', to: 'Parent', msg: 'Thanks for your interest — what happens next' },
-      { ch: 'SMS',   to: 'Parent', msg: 'Quick acknowledgement with brand sign-off' },
-      { ch: 'Email', to: 'Admin',  msg: 'New lead alert with name, location, age group' },
-    ],
-  },
   {
     key: 'user_registered',
     label: 'User Registered',
@@ -208,6 +205,20 @@ export default function AdminDashboard() {
   const [view, setView]                       = useState<View>('dashboard');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('locations');
   const [settingsOpen, setSettingsOpen]       = useState(false);
+  const [dashboardCounts, setDashboardCounts] = useState<DashboardCounts | null>(null);
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') return;
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    fetch(`${API_URL}/admin/dashboard-counts`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => {
+        if (!response.ok) throw new Error('Unable to load dashboard counts');
+        return response.json();
+      })
+      .then(data => setDashboardCounts(data as DashboardCounts))
+      .catch(() => setDashboardCounts(null));
+  }, [user]);
 
   // Enrollments
   const [enrollments, setEnrollments]   = useState<Enrollment[]>([]);
@@ -258,6 +269,9 @@ export default function AdminDashboard() {
             totalAmount: Number(e.total_amount ?? 0),
             bookingDate: String(e.booking_date ?? e.created_at ?? ''),
             status:      String(e.status ?? 'pending'),
+            confirmationRequestSentAt: String(e.confirmation_request_sent_at ?? ''),
+            confirmationRespondedAt: String(e.confirmation_responded_at ?? ''),
+            confirmationResponseChannel: String(e.confirmation_response_channel ?? ''),
             students:    allStudents,
           };
         });
@@ -286,17 +300,76 @@ export default function AdminDashboard() {
     return true;
   }), [enrollments, filters]);
 
+  const trialEnrollments = enrollments.filter(e => e.students.some(s => s.type === 'Trial'));
+  const visibleEnrollmentCount = view === 'trial_enrollments' ? trialEnrollments.length : enrollments.length;
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [callTimes, setCallTimes] = useState<Record<number, string>>({});
+  const [scheduledCallTimes, setScheduledCallTimes] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (view !== 'leads' || !user || user.role !== 'admin') return;
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    setLeadsLoading(true);
+    fetch(`${API_URL}/admin/leads?per_page=100`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(data => setLeads(Array.isArray(data) ? data : (data.data ?? [])))
+      .catch(() => setLeads([])).finally(() => setLeadsLoading(false));
+  }, [view, user]);
+
+  const updateLeadRegistration = async (leadId: number, isRegistered: boolean) => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    const response = await fetch(`${API_URL}/admin/leads/${leadId}/registration`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ is_registered: isRegistered }),
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
+  };
+
+  const addReminderCall = async (leadId: number) => {
+    const token = localStorage.getItem('auth_token');
+    const calledAt = callTimes[leadId];
+    if (!token || !calledAt) return;
+    const response = await fetch(`${API_URL}/admin/leads/${leadId}/calls`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ called_at: new Date(calledAt).toISOString() }),
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
+    setCallTimes(current => ({ ...current, [leadId]: '' }));
+  };
+
+  const saveScheduledCall = async (leadId: number) => {
+    const token = localStorage.getItem('auth_token');
+    const scheduledAt = scheduledCallTimes[leadId];
+    if (!token || !scheduledAt) return;
+    const response = await fetch(`${API_URL}/admin/leads/${leadId}/call-schedule`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ scheduled_call_time: new Date(scheduledAt).toISOString() }),
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
+    setScheduledCallTimes(current => ({ ...current, [leadId]: '' }));
+  };
+
   // Users
   const [appUsers,     setAppUsers]     = useState<AppUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch,   setUserSearch]   = useState('');
 
   useEffect(() => {
-    if (view !== 'users' || !user || user.role !== 'admin') return;
+    if ((view !== 'parents' && view !== 'users') || !user || user.role !== 'admin') return;
     const token = localStorage.getItem('auth_token');
     if (!token) return;
     setUsersLoading(true);
-    fetch(`${API_URL}/admin/users`, { headers: { Authorization: `Bearer ${token}` } })
+    const endpoint = view === 'parents' ? 'parents' : 'users';
+    fetch(`${API_URL}/admin/${endpoint}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setAppUsers(Array.isArray(data) ? data : []))
       .catch(() => setAppUsers([]))
@@ -493,6 +566,13 @@ export default function AdminDashboard() {
     class_date: string; class_time: string;
     attended: boolean | null;
     enrollment_id: number; parent_name: string; parent_email: string; parent_phone: string;
+  };
+  const formatAttendanceDate = (value: string) => {
+    if (!value) return '—';
+    const parsed = new Date(`${value.slice(0, 10)}T00:00:00`);
+    return Number.isNaN(parsed.getTime())
+      ? value
+      : parsed.toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
   };
   const [attendanceDate,       setAttendanceDate]       = useState('');
   const [attendanceCurriculum, setAttendanceCurriculum] = useState('');
@@ -772,10 +852,11 @@ export default function AdminDashboard() {
   const deleteEnrollment = async (id: string) => {
     const token = localStorage.getItem('auth_token');
     try {
-      await fetch(`${API_URL}/enrollments/${id}`, {
+      const response = await fetch(`${API_URL}/admin/enrollments/${id}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!response.ok) throw new Error('Unable to update enrollment status');
     } catch { /* ignore — update local state regardless */ }
     const next = enrollments.filter(e => e.id !== id);
     setEnrollments(next);
@@ -797,7 +878,6 @@ export default function AdminDashboard() {
     syncToStorage(next);
   };
 
-  const totalRevenue  = enrollments.reduce((s, e) => s + (Number(e.totalAmount) || 0), 0);
 
   const navTo = (v: View) => setView(v);
   const goSettings = (s: SettingsSection) => { setView('settings'); setSettingsSection(s); setSettingsOpen(true); };
@@ -828,16 +908,19 @@ export default function AdminDashboard() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           <SidebarBtn icon={<IcoHome />}  label="Home"        active={view === 'dashboard'}   onClick={() => navTo('dashboard')} />
-          <SidebarBtn icon={<IcoUsers />} label="Enrollments" active={view === 'enrollments'} onClick={() => navTo('enrollments')}
-            badge={enrollments.length > 0 ? String(enrollments.length) : undefined} />
-          <SidebarBtn icon={<IcoPerson />} label="Users" active={view === 'users'} onClick={() => navTo('users')}
-            badge={appUsers.length > 0 ? String(appUsers.length) : undefined} />
+          <SidebarBtn icon={<IcoClip />} label="Leads" active={view === 'leads'} onClick={() => navTo('leads')}
+            badge={dashboardCounts ? String(dashboardCounts.leads) : '…'} />
+          <SidebarBtn icon={<IcoUsers />} label="Trial Enrollments" active={view === 'trial_enrollments'} onClick={() => navTo('trial_enrollments')}
+            badge={dashboardCounts ? String(dashboardCounts.trial_enrollments) : '…'} />
+          <SidebarBtn icon={<IcoPerson />} label="Parents" active={view === 'parents'} onClick={() => navTo('parents')}
+            badge={dashboardCounts ? String(dashboardCounts.parents) : '…'} />
+          <SidebarBtn icon={<IcoUsers />} label="Users" active={view === 'users'} onClick={() => navTo('users')} badge={dashboardCounts ? String(dashboardCounts.users) : '…'} />
           <SidebarBtn icon={<IcoBook />}  label="Classes"     active={view === 'classes'}     onClick={() => navTo('classes')}
-            badge={classes.length > 0 ? String(classes.length) : undefined} />
+            badge={dashboardCounts ? String(dashboardCounts.classes) : '…'} />
           <SidebarBtn icon={<IcoBell />}  label="Notifications" active={view === 'notifications'} onClick={() => navTo('notifications')}
-            badge={notifLogs.filter(l => l.status === 'sent').length > 0 ? String(notifLogs.filter(l => l.status === 'sent').length) : undefined} />
+            badge={dashboardCounts ? String(dashboardCounts.notification_logs) : '…'} />
           <SidebarBtn icon={<IcoZap />}   label="Workflows"   active={view === 'workflows'}   onClick={() => navTo('workflows')}
-            badge={String(WORKFLOWS.length)} />
+            badge={dashboardCounts ? String(WORKFLOWS.length + dashboardCounts.workflows) : '…'} />
           <SidebarBtn icon={<IcoClip />}  label="Attendance"  active={view === 'attendance'}  onClick={() => navTo('attendance')} />
 
           <div className="my-2 mx-1" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }} />
@@ -903,19 +986,15 @@ export default function AdminDashboard() {
                     <h2 className="mt-2 text-3xl font-semibold">Keep every class, parent, and enrollment moving smoothly.</h2>
                     <p className="mt-3 text-sm text-blue-100/90">Monitor booking activity, manage outreach, and stay ahead of class demand from a single professional workspace.</p>
                   </div>
-                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm backdrop-blur">
-                    <p className="text-blue-100">Today’s focus</p>
-                    <p className="mt-1 font-semibold text-white">{enrollments.filter(e => e.status === 'pending').length} pending confirmations</p>
-                  </div>
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {[
-                  { label: 'Enrollments', value: enrollments.length, color: 'text-blue-600', bg: 'bg-blue-50', icon: '✦' },
-                  { label: 'Users', value: appUsers.length, color: 'text-indigo-600', bg: 'bg-indigo-50', icon: '◎' },
-                  { label: 'Classes', value: classes.length, color: 'text-orange-600', bg: 'bg-orange-50', icon: '⬢' },
-                  { label: 'Revenue', value: `$${totalRevenue.toLocaleString()}`, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '↗' },
+                  { label: 'Trial Enrollments', value: dashboardCounts ? dashboardCounts.trial_enrollments : '…', color: 'text-blue-600', bg: 'bg-blue-50', icon: '✦' },
+                  { label: 'Users', value: dashboardCounts ? dashboardCounts.users : '…', color: 'text-indigo-600', bg: 'bg-indigo-50', icon: '◎' },
+                  { label: 'Classes', value: dashboardCounts ? dashboardCounts.classes : '…', color: 'text-orange-600', bg: 'bg-orange-50', icon: '⬢' },
+                  { label: 'Revenue', value: dashboardCounts ? `$${Number(dashboardCounts.revenue).toLocaleString()}` : '…', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '↗' },
                 ].map(s => (
                   <div key={s.label} className={`rounded-3xl border border-slate-200/80 ${s.bg} p-6 shadow-sm`}>
                     <div className="flex items-start justify-between">
@@ -938,7 +1017,7 @@ export default function AdminDashboard() {
                       <h3 className="text-lg font-semibold text-slate-900">Latest enrollments</h3>
                       <p className="dashboard-subtle mt-1">A real-time snapshot of recent parent activity</p>
                     </div>
-                    <button onClick={() => navTo('enrollments')} className="text-sm font-medium text-blue-600 hover:text-blue-700">Manage all</button>
+                    <button onClick={() => navTo('trial_enrollments')} className="text-sm font-medium text-blue-600 hover:text-blue-700">Manage all</button>
                   </div>
                   <div className="mt-5 space-y-3">
                     {recentEnrollments.length === 0 ? (
@@ -963,7 +1042,7 @@ export default function AdminDashboard() {
                   <div className="dashboard-card p-6">
                     <h3 className="text-lg font-semibold text-slate-900">Quick actions</h3>
                     <div className="mt-4 space-y-2">
-                      <button onClick={() => navTo('enrollments')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700">
+                      <button onClick={() => navTo('trial_enrollments')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700">
                         <span>Review enrollments</span>
                         <span>→</span>
                       </button>
@@ -993,7 +1072,7 @@ export default function AdminDashboard() {
                       <div>
                         <div className="mb-1 flex items-center justify-between text-sm">
                           <span className="text-slate-600">Pending follow-up</span>
-                          <span className="font-semibold text-slate-900">{enrollments.filter(e => e.status === 'pending').length}</span>
+                          <span className="font-semibold text-slate-900">{dashboardCounts ? dashboardCounts.pending_enrollments : '…'}</span>
                         </div>
                         <div className="h-2 rounded-full bg-slate-100">
                           <div className="h-2 w-[68%] rounded-full bg-gradient-to-r from-amber-500 to-orange-500" />
@@ -1007,14 +1086,14 @@ export default function AdminDashboard() {
           )}
 
           {/* ══════ ENROLLMENTS ══════ */}
-          {view === 'enrollments' && (
+          {view === 'trial_enrollments' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
 
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-xl font-semibold text-gray-900">Enrollments</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">{enrollments.length} total record{enrollments.length !== 1 ? 's' : ''}</p>
+                  <h1 className="text-xl font-semibold text-gray-900">Trial Enrollments</h1>
+                  <p className="text-xs text-gray-400 mt-0.5">{visibleEnrollmentCount} total record{visibleEnrollmentCount !== 1 ? 's' : ''}</p>
                 </div>
                 {enrollments.length > 0 && !confirmClear && (
                   <button onClick={() => setConfirmClear(true)}
@@ -1061,7 +1140,7 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {enrollments.length === 0 ? (
+              {visibleEnrollmentCount === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
                     <IcoUsers size={28} className="text-gray-300" />
@@ -1080,13 +1159,13 @@ export default function AdminDashboard() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wider">
                       <tr>
-                        {['Parent', 'Email', 'Phone', 'Students', 'Amount', 'Status', 'Date', ''].map(h => (
+                        {['Parent', 'Email', 'Phone', 'Students', 'Amount', 'Status', 'Parent Response', 'Date', ''].map(h => (
                           <th key={h} className="px-4 py-3 font-medium">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {filteredEnrollments.map(e => (
+                      {filteredEnrollments.filter(e => e.students.some(s => s.type === 'Trial')).map(e => (
                         <>
                         <tr key={e.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedRow(expandedRow === e.id ? null : e.id)}>
                           <td className="px-4 py-3">
@@ -1124,6 +1203,10 @@ export default function AdminDashboard() {
                               <option value="pending">pending</option>
                               <option value="cancelled">cancelled</option>
                             </select>
+                          </td>
+
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {e.confirmationRespondedAt ? <><div className="font-medium text-gray-700">{(e.confirmationResponseChannel || 'admin').replaceAll('_', ' ')}</div><div>{new Date(e.confirmationRespondedAt).toLocaleString('en-CA')}</div></> : e.confirmationRequestSentAt ? <><div className="text-amber-700">Awaiting response</div><div>{new Date(e.confirmationRequestSentAt).toLocaleString('en-CA')}</div></> : <span className="text-gray-300">Not sent</span>}
                           </td>
 
                           <td className="px-4 py-3 text-gray-500 text-xs">
@@ -1184,13 +1267,59 @@ export default function AdminDashboard() {
           )}
 
           {/* ══════ USERS ══════ */}
-          {view === 'users' && (
+          {view === 'leads' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+              <div><h1 className="text-xl font-semibold text-gray-900">Leads</h1><p className="text-xs text-gray-400 mt-0.5">All step-one submissions, including registered parents</p></div>
+              {leadsLoading ? <p className="py-12 text-center text-gray-400">Loading leads…</p> : leads.length === 0 ? (
+                <p className="py-16 text-center text-gray-400">No leads yet.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-gray-100"><table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-xs text-gray-500 uppercase"><tr>{['Name','Email','Phone','Course','Age Group','Location','Registered','Reminder Call Count','Reminder Call Time','Scheduled Call Time','Reminder Email Count','Reminder Email Time','Submitted','Updated At'].map(h => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
+                  <tbody className="divide-y divide-gray-50">{leads.map(lead => <tr key={lead.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{lead.name}</td><td className="px-4 py-3">{lead.email}</td><td className="px-4 py-3">{lead.phone}</td>
+                    <td className="px-4 py-3">{lead.course || '—'}</td><td className="px-4 py-3">{lead.age_group || '—'}</td><td className="px-4 py-3">{lead.location || '—'}</td>
+                    <td className="px-4 py-3"><select value={lead.is_registered ? 'yes' : 'no'} onChange={e => updateLeadRegistration(lead.id, e.target.value === 'yes')}
+                      className={`rounded-full px-2 py-1 text-xs font-medium border-0 ${lead.is_registered ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                      <option value="no">No</option><option value="yes">Yes</option>
+                    </select></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><span className="font-medium">{lead.reminder_call_count ?? 0}</span></td>
+                    <td className="px-4 py-3 text-xs text-gray-500 min-w-[240px]">
+                      {lead.reminder_calls?.length ? <div className="space-y-1 mb-2">{lead.reminder_calls.map(call => <div key={call.id}>{new Date(call.called_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</div>)}</div> : <div className="mb-2">—</div>}
+                      <div className="flex items-center gap-1">
+                        <input type="datetime-local" value={callTimes[lead.id] ?? ''}
+                          onChange={e => setCallTimes(current => ({ ...current, [lead.id]: e.target.value }))}
+                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700" />
+                        <button disabled={!callTimes[lead.id]} onClick={() => addReminderCall(lead.id)}
+                          className="rounded-lg bg-blue-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-40">Add</button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 min-w-[240px]">
+                      <div className="mb-2 whitespace-nowrap">{lead.scheduled_call_time ? new Date(lead.scheduled_call_time).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not scheduled'}</div>
+                      <div className="flex items-center gap-1">
+                        <input type="datetime-local" value={scheduledCallTimes[lead.id] ?? ''}
+                          onChange={e => setScheduledCallTimes(current => ({ ...current, [lead.id]: e.target.value }))}
+                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700" />
+                        <button disabled={!scheduledCallTimes[lead.id]} onClick={() => saveScheduledCall(lead.id)}
+                          className="rounded-lg bg-indigo-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-40">Save</button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap"><span className="font-medium text-gray-700">{lead.reminder_email_count ?? 0} / 3</span>{lead.next_reminder_email_at && <div className="text-[11px] text-blue-600">Next: {new Date(lead.next_reminder_email_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</div>}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{lead.reminder_emails?.length ? <div className="space-y-1">{lead.reminder_emails.map(email => <div key={email.id}><span className="font-medium text-gray-600">Day {email.reminder_day}:</span> {new Date(email.sent_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</div>)}</div> : (lead.is_registered ? 'Stopped — registered' : 'Not sent')}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(lead.created_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(lead.updated_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                  </tr>)}</tbody>
+                </table></div>
+              )}
+            </div>
+          )}
+
+          {(view === 'parents' || view === 'users') && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
 
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-xl font-semibold text-gray-900">Registered Users</h1>
+                  <h1 className="text-xl font-semibold text-gray-900">{view === 'parents' ? 'Parents' : 'Users'}</h1>
                   <p className="text-xs text-gray-400 mt-0.5">{appUsers.length} account{appUsers.length !== 1 ? 's' : ''} registered</p>
                 </div>
               </div>
@@ -1222,8 +1351,8 @@ export default function AdminDashboard() {
                   <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
                     <IcoPerson size={28} className="text-gray-300" />
                   </div>
-                  <p className="text-base font-semibold text-gray-400">No users registered yet</p>
-                  <p className="text-sm text-gray-300 mt-1">Users will appear here after they create an account.</p>
+                  <p className="text-base font-semibold text-gray-400">No {view === 'parents' ? 'parents' : 'users'} registered yet</p>
+                  <p className="text-sm text-gray-300 mt-1">{view === 'parents' ? 'Parents' : 'Users'} will appear here after they create an account.</p>
                 </div>
 
               ) : (
@@ -1427,7 +1556,7 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap gap-3 items-end">
                 {([
                   { label: 'Type',   field: 'type'   as const, opts: ['All', 'email', 'sms'] },
-                  { label: 'Event',  field: 'event'  as const, opts: ['All', 'lead_received', 'user_registered', 'enrollment_created', 'enrollment_confirmed', 'enrollment_cancelled', 'class_reminder'] },
+                  { label: 'Event',  field: 'event'  as const, opts: ['All', 'user_registered', 'enrollment_created', 'enrollment_confirmed', 'enrollment_cancelled', 'class_reminder'] },
                   { label: 'Status', field: 'status' as const, opts: ['All', 'sent', 'skipped', 'failed'] },
                 ] as const).map(f => (
                   <div key={f.field}>
@@ -1729,10 +1858,10 @@ export default function AdminDashboard() {
                       onChange={e => setAttendanceDate(e.target.value)} />
                   </div>
                   <div className="min-w-[260px]">
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Curriculum</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Class</label>
                     <select className="input-field" value={attendanceCurriculum}
                       onChange={e => setAttendanceCurriculum(e.target.value)}>
-                      <option value="">All curricula</option>
+                      <option value="">All classes</option>
                       {attendanceCurricula.map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
@@ -1769,7 +1898,7 @@ export default function AdminDashboard() {
                       <tr className="border-b border-gray-100">
                         <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500">Student</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Parent</th>
-                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Curriculum</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Class</th>
                         <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Date / Time</th>
                         <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500">Attendance</th>
                       </tr>
@@ -1786,7 +1915,7 @@ export default function AdminDashboard() {
                             <p className="text-xs text-gray-400">{s.parent_email}</p>
                           </td>
                           <td className="px-4 py-3 text-gray-600 text-xs max-w-[200px]">{s.curriculum || s.course || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{s.class_date || '—'}{s.class_time ? ` · ${s.class_time}` : ''}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{formatAttendanceDate(s.class_date)}{s.class_time ? ` · ${s.class_time}` : ''}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-2">
                               <button onClick={() => markAttendance(s.id, true)}

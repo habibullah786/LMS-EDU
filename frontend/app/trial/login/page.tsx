@@ -31,7 +31,7 @@ export default function LoginPage() {
 
   // Skip auth step if already logged in (either token)
   useEffect(() => {
-    const token = localStorage.getItem('lms_token') || localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
     if (token) {
       saveEnrollmentAndContinue().catch(() => setLoading(false));
     } else {
@@ -84,7 +84,6 @@ export default function LoginPage() {
         parent_phone: phone,
         total_amount: 0,
         source: pageUrl || 'trial',
-        lead_id: localStorage.getItem('lms_lead_id') ? Number(localStorage.getItem('lms_lead_id')) : null,
         trial_ref_id: null,
         location: locationLabel,
         course: course || '',
@@ -123,7 +122,7 @@ export default function LoginPage() {
       const lmsOk = lmsRes.status === 'fulfilled' && lmsRes.value?.token;
       if (!lmsOk) { setError('Invalid email or password. Please try again.'); setLoading(false); return; }
 
-      localStorage.setItem('lms_token', lmsRes.value.token);
+      localStorage.setItem('auth_token', lmsRes.value.token);
       if (lmsRes.value.user?.id) localStorage.setItem('lms_user_id', String(lmsRes.value.user.id));
 
       if (orbundRes.status === 'fulfilled' && !orbundRes.value?.error) {
@@ -169,7 +168,7 @@ export default function LoginPage() {
         return;
       }
 
-      localStorage.setItem('lms_token', lmsRes.value.token);
+      localStorage.setItem('auth_token', lmsRes.value.token);
       if (lmsRes.value.user?.id) localStorage.setItem('lms_user_id', String(lmsRes.value.user.id));
 
       if (orbundRes.status === 'fulfilled' && !orbundRes.value?.error) {

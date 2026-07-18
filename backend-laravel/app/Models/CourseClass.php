@@ -12,6 +12,7 @@ class CourseClass extends Model
 
     protected $fillable = [
         'course_id',
+        'curriculum_id',
         'start_datetime',
         'end_datetime',
         'total_seats',
@@ -30,6 +31,11 @@ class CourseClass extends Model
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    public function curriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class);
     }
 
     public function enrollments(): HasMany

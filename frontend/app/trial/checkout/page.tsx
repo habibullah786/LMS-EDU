@@ -93,7 +93,6 @@ export default function CheckoutPage() {
         parent_phone: phone,
         total_amount: free ? 0 : Number(paymentData.totalAmount || 0),
         source: pageUrl || 'trial',
-        lead_id: localStorage.getItem('lms_lead_id') ? Number(localStorage.getItem('lms_lead_id')) : null,
         trial_ref_id: localStorage.getItem('orbund_enrollment_id') || null,
         location: locationLabel,
         course: course || '',

@@ -20,4 +20,10 @@ Schedule::command('notifications:send-scheduled')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('payments:expire-reservations')->everyMinute()->withoutOverlapping();
+
+Schedule::command('leads:send-registration-reminders')
+    ->dailyAt('09:15')
+    ->withoutOverlapping();
+
 

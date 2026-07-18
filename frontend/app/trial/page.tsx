@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { orbund } from '@/lib/orbund';
 import { lmsApi } from '@/lib/lmsApi';
@@ -25,14 +25,11 @@ export default function TrialRegistrationPage() {
   const [lockedUser, setLockedUser] = useState(false);
   const [lockedPhone, setLockedPhone] = useState(false);
 
-  const sessionIdRef = useRef('');
-
   useEffect(() => {
     // Load trial config, Orbund session, and logged-in user in parallel
     Promise.all([
       lmsApi.trialConfig().then(data => setConfig(data)).catch(() => setConfigErr('Failed to load form options. Please refresh.')),
       orbund.getSessionId().then(id => {
-        sessionIdRef.current = id;
         localStorage.setItem('orbund_session_id', id);
       }).catch(() => {}),
       lmsApi.me().then(user => {
@@ -67,7 +64,6 @@ export default function TrialRegistrationPage() {
     setError('');
     setLoading(true);
 
-    const sessionId = sessionIdRef.current || localStorage.getItem('orbund_session_id') || '';
     const ageGroup  = config!.age_groups.find(a => String(a.id) === ageGroupId)!;
     const location  = config!.locations.find(l => l.orbund_campus_type === campusType)!;
     const pageUrl   = ageGroup.course === 'Coding' ? 'coding_trial' : 'robotics_trial';
@@ -84,23 +80,21 @@ export default function TrialRegistrationPage() {
       locationLabel: location.name,
       pageUrl,
     };
+    try {
+      const lead = await lmsApi.captureLead({
+        name, email, phone, age_group: ageGroup.name, course: ageGroup.course,
+        location: location.name, orbund_program_id: ageGroup.orbund_program_id,
+        orbund_campus_type: location.orbund_campus_type, level_id: ageGroup.orbund_level_id,
+        semester_id: config!.semester_id, source: 'trial', page_url: pageUrl,
+        orbund_session_id: localStorage.getItem('orbund_session_id') || undefined,
+      });
+      localStorage.setItem('lms_lead_id', String(lead.lead_id));
+    } catch (leadError) {
+      setError(leadError instanceof Error ? leadError.message : 'Unable to save your details.');
+      setLoading(false);
+      return;
+    }
     localStorage.setItem('trial_registration', JSON.stringify(detail));
-
-    // Save lead to our DB (fire-and-forget)
-    lmsApi.saveLead({
-      name, email, phone,
-      age_group:         ageGroup.name,
-      orbund_program_id: ageGroup.orbund_program_id,
-      location:          location.name,
-      orbund_campus_type: location.orbund_campus_type,
-      level_id:          ageGroup.orbund_level_id,
-      semester_id:       config!.semester_id,
-      source:            pageUrl,
-      page_url:          pageUrl,
-      orbund_session_id: sessionId,
-    }).then(res => {
-      if (res.lead_id) localStorage.setItem('lms_lead_id', String(res.lead_id));
-    }).catch(() => {});
 
     router.push('/trial/classes');
   }
