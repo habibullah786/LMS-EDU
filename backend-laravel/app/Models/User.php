@@ -13,6 +13,8 @@ class User extends Authenticatable
         'password',
         'role',
         'phone',
+        'access_level',
+        'permissions',
     ];
 
     protected $hidden = [
@@ -23,6 +25,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'permissions' => 'array',
     ];
 
     public function enrollments(): HasMany
@@ -43,6 +46,17 @@ class User extends Authenticatable
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'admin' && $this->access_level === 'super_admin';
+    }
+
+    public function canAccess(string $module, string $action = 'view'): bool
+    {
+        if ($this->isSuperAdmin()) return true;
+        return in_array($action, $this->permissions[$module] ?? [], true);
     }
 
     public function isParent(): bool

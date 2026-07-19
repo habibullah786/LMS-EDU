@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { apiFetch, getAuthToken } from '@/lib/apiClient';
 
-interface User { id: string; email: string; name: string; phone: string; role?: string }
+interface User { id: string; email: string; name: string; phone: string; role?: string; access_level?: 'super_admin' | 'admin' | 'operator'; permissions?: Record<string, string[]> }
 interface AuthResponse { token: string; user: User }
 interface AuthContextType {
   user: User | null; isAuthenticated: boolean; isLoading: boolean;

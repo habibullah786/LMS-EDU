@@ -18,6 +18,8 @@ class AdminUserSeeder extends Seeder
                 'name' => env('ADMIN_NAME') ?: 'LMS Administrator',
                 'password' => Hash::make(env('ADMIN_PASSWORD') ?: 'Password123!'),
                 'role' => 'admin',
+                'access_level' => 'super_admin',
+                'permissions' => [],
             ]
         );
     }

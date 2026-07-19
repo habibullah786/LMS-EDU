@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
+        $middleware->alias(['permission' => \App\Http\Middleware\EnsureModulePermission::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -32,7 +32,7 @@ type Enrollment = {
 type Filters = { location: string; course: string; status: string; dateRange: string };
 type DashboardCounts = { enrollments: number; pending_enrollments: number; leads: number; trial_enrollments: number; parents: number; users: number; classes: number; notification_logs: number; notification_logs_sent: number; workflows: number; revenue: number };
 
-type AppUser = { id: number; name: string; email: string; phone: string | null; role: string; created_at: string };
+type AppUser = { id: number; name: string; email: string; phone: string | null; role: string; access_level?: string; permissions?: Record<string, string[]>; created_at: string };
 type LeadReminderCall = { id: number; called_at: string; operator?: { id: number; name: string } | null };
 type LeadReminderEmail = { id: number; reminder_day: number; sent_at: string };
 type Lead = { id: number; name: string; email: string; phone: string; age_group: string | null; course: string | null; location: string | null; source: string; is_registered: boolean; reminder_call_count: number; reminder_call_time: string | null; reminder_calls: LeadReminderCall[]; scheduled_call_time: string | null; reminder_email_count: number; reminder_email_time: string | null; reminder_emails: LeadReminderEmail[]; next_reminder_email_at: string | null; created_at: string; updated_at: string };
@@ -40,6 +40,8 @@ type Lead = { id: number; name: string; email: string; phone: string; age_group:
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const API_URL = API_BASE_URL;
+const ACCESS_MODULES = ['leads', 'trial_enrollments', 'parents', 'users', 'classes', 'notifications', 'workflows', 'attendance', 'settings'] as const;
+const ACCESS_ACTIONS = ['view', 'edit', 'delete'] as const;
 
 const KEYS = {
   locations: 'exceed_config_locations',
@@ -195,6 +197,7 @@ const IcoClip    = ({ size = 17, className = '' }: IconProps) => <svg width={siz
 export default function AdminDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const canAccess = (module: string, action = 'view') => user?.access_level === 'super_admin' || (user?.permissions?.[module] ?? []).includes(action);
 
   useEffect(() => {
     if (!isLoading && (!isAuthenticated || user?.role !== 'admin')) {
@@ -362,6 +365,27 @@ export default function AdminDashboard() {
   const [appUsers,     setAppUsers]     = useState<AppUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch,   setUserSearch]   = useState('');
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', access_level: 'operator', permissions: {} as Record<string, string[]> });
+
+  const toggleInvitePermission = (module: string, action: string) => setInviteForm(current => {
+    const actions = current.permissions[module] ?? [];
+    return { ...current, permissions: { ...current.permissions, [module]: actions.includes(action) ? actions.filter(item => item !== action) : [...actions, action] } };
+  });
+
+  const sendStaffInvitation = async () => {
+    setInviteError(''); setInviteSuccess('');
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_URL}/admin/staff-invitations`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(inviteForm) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to send invitation');
+      setInviteSuccess(`Invitation sent. Link: ${data.invite_url}`);
+      setInviteForm({ name: '', email: '', access_level: 'operator', permissions: {} });
+    } catch (error) { setInviteError(error instanceof Error ? error.message : 'Unable to send invitation'); }
+  };
 
   useEffect(() => {
     if ((view !== 'parents' && view !== 'users') || !user || user.role !== 'admin') return;
@@ -908,24 +932,30 @@ export default function AdminDashboard() {
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           <SidebarBtn icon={<IcoHome />}  label="Home"        active={view === 'dashboard'}   onClick={() => navTo('dashboard')} />
-          <SidebarBtn icon={<IcoClip />} label="Leads" active={view === 'leads'} onClick={() => navTo('leads')}
+          {canAccess('leads') && <SidebarBtn icon={<IcoClip />} label="Leads" active={view === 'leads'} onClick={() => navTo('leads')}
             badge={dashboardCounts ? String(dashboardCounts.leads) : '…'} />
-          <SidebarBtn icon={<IcoUsers />} label="Trial Enrollments" active={view === 'trial_enrollments'} onClick={() => navTo('trial_enrollments')}
+          }
+          {canAccess('trial_enrollments') && <SidebarBtn icon={<IcoUsers />} label="Trial Enrollments" active={view === 'trial_enrollments'} onClick={() => navTo('trial_enrollments')}
             badge={dashboardCounts ? String(dashboardCounts.trial_enrollments) : '…'} />
-          <SidebarBtn icon={<IcoPerson />} label="Parents" active={view === 'parents'} onClick={() => navTo('parents')}
+          }
+          {canAccess('parents') && <SidebarBtn icon={<IcoPerson />} label="Parents" active={view === 'parents'} onClick={() => navTo('parents')}
             badge={dashboardCounts ? String(dashboardCounts.parents) : '…'} />
-          <SidebarBtn icon={<IcoUsers />} label="Users" active={view === 'users'} onClick={() => navTo('users')} badge={dashboardCounts ? String(dashboardCounts.users) : '…'} />
-          <SidebarBtn icon={<IcoBook />}  label="Classes"     active={view === 'classes'}     onClick={() => navTo('classes')}
+          }
+          {canAccess('users') && <SidebarBtn icon={<IcoUsers />} label="Users" active={view === 'users'} onClick={() => navTo('users')} badge={dashboardCounts ? String(dashboardCounts.users) : '…'} />}
+          {canAccess('classes') && <SidebarBtn icon={<IcoBook />}  label="Classes"     active={view === 'classes'}     onClick={() => navTo('classes')}
             badge={dashboardCounts ? String(dashboardCounts.classes) : '…'} />
-          <SidebarBtn icon={<IcoBell />}  label="Notifications" active={view === 'notifications'} onClick={() => navTo('notifications')}
+          }
+          {canAccess('notifications') && <SidebarBtn icon={<IcoBell />}  label="Notifications" active={view === 'notifications'} onClick={() => navTo('notifications')}
             badge={dashboardCounts ? String(dashboardCounts.notification_logs) : '…'} />
-          <SidebarBtn icon={<IcoZap />}   label="Workflows"   active={view === 'workflows'}   onClick={() => navTo('workflows')}
+          }
+          {canAccess('workflows') && <SidebarBtn icon={<IcoZap />}   label="Workflows"   active={view === 'workflows'}   onClick={() => navTo('workflows')}
             badge={dashboardCounts ? String(WORKFLOWS.length + dashboardCounts.workflows) : '…'} />
-          <SidebarBtn icon={<IcoClip />}  label="Attendance"  active={view === 'attendance'}  onClick={() => navTo('attendance')} />
+          }
+          {canAccess('attendance') && <SidebarBtn icon={<IcoClip />}  label="Attendance"  active={view === 'attendance'}  onClick={() => navTo('attendance')} />}
 
           <div className="my-2 mx-1" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }} />
 
-          <SidebarBtn
+          {canAccess('settings') && <SidebarBtn
             icon={<IcoGear />}
             label="Account & Settings"
             active={view === 'settings'}
@@ -935,7 +965,7 @@ export default function AdminDashboard() {
               if (view === 'settings') { setSettingsOpen(o => !o); }
               else { navTo('settings'); setSettingsOpen(true); }
             }}
-          />
+          />}
           {(view === 'settings' || settingsOpen) && (
             <div className="ml-3 pl-3 space-y-0.5 border-l" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
               {([
@@ -1192,6 +1222,7 @@ export default function AdminDashboard() {
                           <td className="px-4 py-3" onClick={ev => ev.stopPropagation()}>
                             <select
                               value={e.status}
+                              disabled={!canAccess('trial_enrollments', 'edit')}
                               onChange={ev => updateStatus(e.id, ev.target.value)}
                               className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${
                                 e.status === 'confirmed' ? 'bg-green-100 text-green-700' :
@@ -1215,7 +1246,7 @@ export default function AdminDashboard() {
 
                           {/* Actions */}
                           <td className="px-4 py-3 text-right whitespace-nowrap">
-                            {confirmDelete === e.id ? (
+                            {canAccess('trial_enrollments', 'delete') && (confirmDelete === e.id ? (
                               <span className="inline-flex items-center gap-2">
                                 <button onClick={() => deleteEnrollment(e.id)}
                                   className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg px-2.5 py-1 transition-colors">
@@ -1231,7 +1262,7 @@ export default function AdminDashboard() {
                                 className="text-xs text-red-400 hover:text-red-600 transition-colors">
                                 Delete
                               </button>
-                            )}
+                            ))}
                           </td>
                         </tr>
                         {expandedRow === e.id && (
@@ -1322,7 +1353,21 @@ export default function AdminDashboard() {
                   <h1 className="text-xl font-semibold text-gray-900">{view === 'parents' ? 'Parents' : 'Users'}</h1>
                   <p className="text-xs text-gray-400 mt-0.5">{appUsers.length} account{appUsers.length !== 1 ? 's' : ''} registered</p>
                 </div>
+                {view === 'users' && user?.access_level === 'super_admin' && <button onClick={() => setInviteOpen(true)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white">Invite staff</button>}
               </div>
+
+              {inviteOpen && <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 space-y-4">
+                <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900">Invite staff member</h2><button onClick={() => setInviteOpen(false)} className="text-gray-500">Close</button></div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <input className="input-field" placeholder="Full name" value={inviteForm.name} onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))} />
+                  <input className="input-field" type="email" placeholder="Email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} />
+                  <select className="input-field" value={inviteForm.access_level} onChange={e => setInviteForm(f => ({ ...f, access_level: e.target.value }))}><option value="operator">Operator</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option></select>
+                </div>
+                {inviteForm.access_level !== 'super_admin' && <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white"><table className="w-full text-sm"><thead><tr><th className="p-3 text-left">Module</th>{ACCESS_ACTIONS.map(action => <th key={action} className="p-3 capitalize">{action}</th>)}</tr></thead><tbody>{ACCESS_MODULES.map(module => <tr key={module} className="border-t"><td className="p-3 font-medium capitalize">{module.replaceAll('_', ' ')}</td>{ACCESS_ACTIONS.map(action => <td key={action} className="p-3 text-center"><input type="checkbox" checked={(inviteForm.permissions[module] ?? []).includes(action)} onChange={() => toggleInvitePermission(module, action)} /></td>)}</tr>)}</tbody></table></div>}
+                {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
+                {inviteSuccess && <p className="break-all rounded-lg bg-green-50 p-3 text-sm text-green-700">{inviteSuccess}</p>}
+                <button disabled={!inviteForm.name || !inviteForm.email} onClick={sendStaffInvitation} className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Send invitation</button>
+              </div>}
 
               {/* Search */}
               {appUsers.length > 0 && (
@@ -1391,7 +1436,7 @@ export default function AdminDashboard() {
                               <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                                 u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                               }`}>
-                                {u.role}
+                                {u.access_level ? u.access_level.replaceAll('_', ' ') : u.role}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-gray-500 text-xs">

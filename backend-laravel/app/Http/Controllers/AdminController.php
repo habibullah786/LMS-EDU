@@ -103,7 +103,7 @@ class AdminController extends Controller
 
     public function users(): JsonResponse
     {
-        return response()->json(User::select('id', 'name', 'email', 'phone', 'role', 'created_at')->get());
+        return response()->json(User::select('id', 'name', 'email', 'phone', 'role', 'access_level', 'permissions', 'created_at')->get());
     }
 
     public function parents(): JsonResponse

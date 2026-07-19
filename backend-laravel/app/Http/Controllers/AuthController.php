@@ -152,6 +152,8 @@ class AuthController extends Controller
             'email' => $user->email,
             'phone' => $user->phone,
             'role' => $user->role,
+            'access_level' => $user->access_level,
+            'permissions' => $user->permissions ?? [],
         ];
     }
 
