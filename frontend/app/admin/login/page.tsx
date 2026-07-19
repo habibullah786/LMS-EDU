@@ -138,14 +138,6 @@ export default function AdminLogin() {
               ← Back to main site
             </Link>
           </div>
-
-          <div className="bg-blue-50 p-4 rounded-md">
-            <p className="text-sm text-blue-800 font-medium">Demo Admin Credentials:</p>
-            <p className="text-sm text-blue-700 mt-1">
-              Email: admin@lmsedu.com<br />
-              Password: Password123!
-            </p>
-          </div>
         </form>
       </div>
     </div>

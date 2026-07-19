@@ -95,12 +95,13 @@ function SidebarBtn({ icon, label, active, onClick, badge }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+      className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
         active
-          ? 'bg-white/15 text-white'
+          ? 'bg-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]'
           : 'text-white/70 hover:bg-white/10 hover:text-white'
       }`}
     >
+      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-accent" />}
       {icon}
       <span className="flex-1 text-left">{label}</span>
       {badge !== undefined && badge > 0 && (
@@ -303,7 +304,7 @@ export default function ParentDashboard() {
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       <aside
         className="w-60 flex-shrink-0 flex flex-col"
-        style={{ background: '#1e3f8b' }}
+        style={{ background: 'linear-gradient(180deg, #1e3f8b 0%, #16305f 100%)' }}
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/10">
@@ -461,7 +462,7 @@ export default function ParentDashboard() {
           {view === 'enrollments' && (
             <div className="space-y-5 max-w-5xl">
               {/* Filters */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+              <div className="dashboard-card p-5">
                 <div className="flex flex-wrap gap-4">
                   <div>
                     <p className="text-xs text-gray-500 font-medium mb-2">Type</p>
@@ -503,7 +504,7 @@ export default function ParentDashboard() {
               </div>
 
               {/* Table */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="dashboard-card overflow-hidden">
                 {enrollLoading ? (
                   <div className="flex items-center justify-center gap-3 py-16 text-gray-400">
                     <div className="w-5 h-5 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
@@ -586,7 +587,7 @@ export default function ParentDashboard() {
             <div className="max-w-3xl space-y-6">
 
               {/* Update Profile */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-7">
+              <div className="dashboard-card p-7">
                 <h3 className="text-base font-semibold text-gray-900 mb-1">Personal Information</h3>
                 <p className="text-sm text-gray-400 mb-6">Update your name and phone number.</p>
 
@@ -647,7 +648,7 @@ export default function ParentDashboard() {
               </div>
 
               {/* Change Password */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-7">
+              <div className="dashboard-card p-7">
                 <h3 className="text-base font-semibold text-gray-900 mb-1">Change Password</h3>
                 <p className="text-sm text-gray-400 mb-6">Use a strong password of at least 8 characters.</p>
 

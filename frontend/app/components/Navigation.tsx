@@ -8,6 +8,7 @@ import { useState } from 'react';
 export default function Navigation() {
   const { isAuthenticated, user, logout, openLoginModal } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const pathname = usePathname();
 
   // Admin and parent dashboards have their own internal header/nav.
@@ -34,30 +35,29 @@ export default function Navigation() {
         </div>
 
         {/* Auth Buttons */}
-        <div className="flex items-center gap-4">
-          {isAuthenticated && user?.role === 'admin' ? (
+        <div className="hidden md:block relative">
+          {isAuthenticated ? (
             <>
-              <span className="text-gray-700 text-sm">Admin: {user?.name?.split(' ')[0]}</span>
-              <Link href="/admin/dashboard" className="btn-secondary text-sm">Admin Dashboard</Link>
-              <button onClick={logout} className="px-4 py-2 text-gray-700 hover:text-primary transition font-medium">
-                Logout
+              <button
+                type="button"
+                aria-expanded={accountMenuOpen}
+                onClick={() => setAccountMenuOpen(open => !open)}
+                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-primary/40 hover:text-primary"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">{(user?.name ?? 'U').charAt(0).toUpperCase()}</span>
+                <span>{user?.name?.split(' ')[0] ?? 'Account'}</span>
+                <svg className={`h-4 w-4 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
-            </>
-          ) : isAuthenticated ? (
-            <>
-              <span className="text-gray-700 text-sm hidden sm:inline">Hi, {user?.name?.split(' ')[0]}</span>
-              <Link href="/parent/dashboard" className="btn-primary text-sm">Dashboard</Link>
-              <button onClick={logout} className="px-4 py-2 text-gray-700 hover:text-primary transition font-medium">
-                Logout
-              </button>
+              {accountMenuOpen && <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-xl">
+                <div className="border-b border-gray-100 px-4 py-3"><p className="truncate text-sm font-semibold text-gray-900">{user?.name}</p><p className="truncate text-xs text-gray-500">{user?.email}</p></div>
+                <Link href={user?.role === 'admin' ? '/admin/dashboard' : '/parent/dashboard'} onClick={() => setAccountMenuOpen(false)} className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary">Dashboard</Link>
+                <button onClick={() => { setAccountMenuOpen(false); logout(); }} className="block w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50">Logout</button>
+              </div>}
             </>
           ) : (
             <>
               <button onClick={openLoginModal} className="text-primary font-semibold hover:text-blue-700 transition">
                 Login
-              </button>
-              <button onClick={openLoginModal} className="btn-primary text-sm">
-                Get Started
               </button>
             </>
           )}
@@ -86,17 +86,11 @@ export default function Navigation() {
                 >
                   Login
                 </button>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); openLoginModal(); }}
-                  className="btn-primary text-center"
-                >
-                  Get Started
-                </button>
               </>
             )}
             {isAuthenticated && (
               <>
-                <Link href="/parent/dashboard" className="btn-primary text-center" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
+                <Link href={user?.role === 'admin' ? '/admin/dashboard' : '/parent/dashboard'} className="btn-primary text-center" onClick={() => setMobileMenuOpen(false)}>Dashboard</Link>
                 <button onClick={() => { setMobileMenuOpen(false); logout(); }} className="text-gray-700 font-medium text-left">Logout</button>
               </>
             )}

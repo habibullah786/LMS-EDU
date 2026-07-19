@@ -195,7 +195,7 @@ const IcoClip    = ({ size = 17, className = '' }: IconProps) => <svg width={siz
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const canAccess = (module: string, action = 'view') => user?.access_level === 'super_admin' || (user?.permissions?.[module] ?? []).includes(action);
 
@@ -903,7 +903,10 @@ export default function AdminDashboard() {
   };
 
 
-  const navTo = (v: View) => setView(v);
+  const navTo = (v: View) => {
+    setView(v);
+    if (v !== 'users') setInviteOpen(false);
+  };
   const goSettings = (s: SettingsSection) => { setView('settings'); setSettingsSection(s); setSettingsOpen(true); };
   const recentEnrollments = enrollments.slice(0, 4);
 
@@ -919,7 +922,7 @@ export default function AdminDashboard() {
     <div className="flex h-screen overflow-hidden" style={{ background: '#f0f2f5' }}>
 
       {/* ══════════════════ SIDEBAR ══════════════════ */}
-      <aside className="w-56 flex-shrink-0 flex flex-col select-none" style={{ background: '#1e3f8b' }}>
+      <aside className="w-56 flex-shrink-0 flex flex-col select-none" style={{ background: 'linear-gradient(180deg, #1e3f8b 0%, #16305f 100%)' }}>
 
         {/* Logo */}
         <div className="px-5 h-14 flex items-center gap-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
@@ -995,8 +998,9 @@ export default function AdminDashboard() {
           </div>
           <div className="min-w-0">
             <p className="text-xs font-medium text-white truncate">{user?.name ?? 'Admin'}</p>
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>Administrator</p>
+            <p className="text-xs capitalize" style={{ color: 'rgba(255,255,255,0.45)' }}>{(user?.access_level ?? 'admin').replaceAll('_', ' ')}</p>
           </div>
+          <button onClick={() => { logout(); router.push('/admin/login'); }} className="ml-auto rounded-lg border border-white/20 px-2 py-1 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white" title="Log out">Logout</button>
         </div>
       </aside>
 
@@ -1117,7 +1121,7 @@ export default function AdminDashboard() {
 
           {/* ══════ ENROLLMENTS ══════ */}
           {view === 'trial_enrollments' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+            <div className="dashboard-card p-6 space-y-5">
 
               {/* Header */}
               <div className="flex items-center justify-between">
@@ -1299,7 +1303,7 @@ export default function AdminDashboard() {
 
           {/* ══════ USERS ══════ */}
           {view === 'leads' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+            <div className="dashboard-card p-6 space-y-5">
               <div><h1 className="text-xl font-semibold text-gray-900">Leads</h1><p className="text-xs text-gray-400 mt-0.5">All step-one submissions, including registered parents</p></div>
               {leadsLoading ? <p className="py-12 text-center text-gray-400">Loading leads…</p> : leads.length === 0 ? (
                 <p className="py-16 text-center text-gray-400">No leads yet.</p>
@@ -1345,7 +1349,7 @@ export default function AdminDashboard() {
           )}
 
           {(view === 'parents' || view === 'users') && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+            <div className="dashboard-card p-6 space-y-5">
 
               {/* Header */}
               <div className="flex items-center justify-between">
@@ -1356,12 +1360,12 @@ export default function AdminDashboard() {
                 {view === 'users' && user?.access_level === 'super_admin' && <button onClick={() => setInviteOpen(true)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white">Invite staff</button>}
               </div>
 
-              {inviteOpen && <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 space-y-4">
+              {view === 'users' && inviteOpen && <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 space-y-4">
                 <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900">Invite staff member</h2><button onClick={() => setInviteOpen(false)} className="text-gray-500">Close</button></div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <input className="input-field" placeholder="Full name" value={inviteForm.name} onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))} />
                   <input className="input-field" type="email" placeholder="Email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} />
-                  <select className="input-field" value={inviteForm.access_level} onChange={e => setInviteForm(f => ({ ...f, access_level: e.target.value }))}><option value="operator">Operator</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option></select>
+                  <select className="input-field" value={inviteForm.access_level} onChange={e => setInviteForm(f => ({ ...f, access_level: e.target.value }))}><option value="operator">Operator</option><option value="admin">Admin</option></select>
                 </div>
                 {inviteForm.access_level !== 'super_admin' && <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white"><table className="w-full text-sm"><thead><tr><th className="p-3 text-left">Module</th>{ACCESS_ACTIONS.map(action => <th key={action} className="p-3 capitalize">{action}</th>)}</tr></thead><tbody>{ACCESS_MODULES.map(module => <tr key={module} className="border-t"><td className="p-3 font-medium capitalize">{module.replaceAll('_', ' ')}</td>{ACCESS_ACTIONS.map(action => <td key={action} className="p-3 text-center"><input type="checkbox" checked={(inviteForm.permissions[module] ?? []).includes(action)} onChange={() => toggleInvitePermission(module, action)} /></td>)}</tr>)}</tbody></table></div>}
                 {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
@@ -1454,7 +1458,7 @@ export default function AdminDashboard() {
 
           {/* ══════ CLASSES ══════ */}
           {view === 'classes' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+            <div className="dashboard-card p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900">Classes</h1>
@@ -1519,7 +1523,7 @@ export default function AdminDashboard() {
 
           {/* ══════ SETTINGS ══════ */}
           {view === 'settings' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="dashboard-card overflow-hidden">
               {/* Tab bar */}
               <div className="flex border-b border-gray-100 overflow-x-auto">
                 {([
@@ -1585,7 +1589,7 @@ export default function AdminDashboard() {
 
           {/* ══════ NOTIFICATIONS ══════ */}
           {view === 'notifications' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+            <div className="dashboard-card p-6 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900">Notification Log</h1>
@@ -1685,7 +1689,7 @@ export default function AdminDashboard() {
           {/* ══════ WORKFLOWS ══════ */}
           {view === 'workflows' && (
             <div className="space-y-4">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-start justify-between gap-4">
+              <div className="dashboard-card p-6 flex items-start justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900 mb-1">Notification Workflows</h1>
                   <p className="text-sm text-gray-500">
@@ -1755,7 +1759,7 @@ export default function AdminDashboard() {
               })}
 
               {/* ── Manage Trigger Events ── */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="dashboard-card overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Trigger Events</p>
@@ -1881,7 +1885,7 @@ export default function AdminDashboard() {
           {view === 'attendance' && (
             <div className="space-y-4">
               {/* Header */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="dashboard-card p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">Attendance Tracker</h2>
@@ -1923,7 +1927,7 @@ export default function AdminDashboard() {
 
               {/* Student list */}
               {attendanceStudents.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="dashboard-card overflow-hidden">
                   {/* Summary bar */}
                   <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-sm">
                     <span className="font-semibold text-gray-700">{attendanceStudents.length} students</span>
@@ -1981,7 +1985,7 @@ export default function AdminDashboard() {
               )}
 
               {attendanceStudents.length === 0 && !attendanceLoading && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-16 text-center">
+                <div className="dashboard-card py-16 text-center">
                   <p className="text-gray-400 text-sm">
                     {attendanceDate || attendanceCurriculum
                     ? `No students found${attendanceDate ? ` for ${attendanceDate}` : ''}${attendanceCurriculum ? ` · ${attendanceCurriculum}` : ''}.`
@@ -2469,11 +2473,12 @@ function SidebarBtn({ icon, label, active, onClick, badge, hasArrow, arrowOpen }
 }) {
   return (
     <button onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left"
+      className="relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left"
       style={{
         background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
         color: active ? '#fff' : 'rgba(255,255,255,0.65)',
       }}>
+      {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-accent" />}
       <span style={{ opacity: active ? 1 : 0.75 }}>{icon}</span>
       <span className="flex-1">{label}</span>
       {badge && (

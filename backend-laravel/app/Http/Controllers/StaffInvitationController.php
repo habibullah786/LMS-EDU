@@ -26,7 +26,7 @@ class StaffInvitationController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
-            'access_level' => ['required', 'in:super_admin,admin,operator'],
+            'access_level' => ['required', 'in:admin,operator'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['array'],
             'permissions.*.*' => ['in:view,edit,delete'],

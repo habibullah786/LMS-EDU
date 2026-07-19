@@ -2,19 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { useRouter } from 'next/navigation';
 
 type TabType = 'login' | 'register';
 
 export default function LoginModal() {
   const { login, register, loginModalOpen, closeLoginModal, error: authError, clearError } = useAuth();
-  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<TabType>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [loginForm, setLoginForm] = useState({ email: 'parent@example.com', password: 'Password123!' });
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
     email: '', password: '', confirmPassword: '', name: '', phone: '',
   });
@@ -48,8 +46,8 @@ export default function LoginModal() {
     clearError();
     try {
       await login(loginForm.email, loginForm.password);
-      setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
-      setTimeout(() => { closeLoginModal(); router.push('/parent/dashboard'); }, 1000);
+      setMessage({ type: 'success', text: 'Login successful!' });
+      setTimeout(closeLoginModal, 1000);
     } catch {
       setMessage({ type: 'error', text: authError || 'Login failed. Please check your credentials.' });
     } finally {
@@ -72,8 +70,8 @@ export default function LoginModal() {
     setIsLoading(true);
     try {
       await register(registerForm.email, registerForm.password, registerForm.name, registerForm.phone);
-      setMessage({ type: 'success', text: 'Account created! Redirecting...' });
-      setTimeout(() => { closeLoginModal(); router.push('/parent/dashboard'); }, 1000);
+      setMessage({ type: 'success', text: 'Account created successfully!' });
+      setTimeout(closeLoginModal, 1000);
     } catch {
       setMessage({ type: 'error', text: authError || 'Registration failed. Please try again.' });
     } finally {
@@ -173,13 +171,6 @@ export default function LoginModal() {
                   Sign up free
                 </button>
               </p>
-
-              {/* Demo credentials hint */}
-              <div className="mt-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-xs text-gray-500 space-y-1">
-                <p className="font-semibold text-gray-600 mb-1">Demo credentials</p>
-                <p>Email: <span className="font-mono text-gray-700 select-all">parent@example.com</span></p>
-                <p>Password: <span className="font-mono text-gray-700 select-all">Password123!</span></p>
-              </div>
             </form>
           )}
 
