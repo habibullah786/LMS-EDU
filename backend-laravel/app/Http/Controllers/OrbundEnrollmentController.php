@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Enrollment;
 use App\Models\TrialEnrollmentStudent;
 use App\Models\User;
+use App\Models\Lead;
+use App\Services\LeadLifecycleService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -14,7 +16,7 @@ use Illuminate\Support\Str;
 
 class OrbundEnrollmentController extends Controller
 {
-    public function __construct(private NotificationService $notifications) {}
+    public function __construct(private NotificationService $notifications, private LeadLifecycleService $leadLifecycle) {}
 
     public function store(Request $request): JsonResponse
     {
@@ -25,6 +27,7 @@ class OrbundEnrollmentController extends Controller
             'total_amount'                   => 'nullable|numeric|min:0',
             'source'                         => 'nullable|string|max:100',
             'trial_ref_id'                   => 'nullable|string|max:100',
+            'lead_id'                        => 'nullable|integer|exists:leads,id',
             'location'                       => 'nullable|string|max:100',
             'course'                         => 'nullable|string|max:100',
             'students'                       => 'nullable|array',
@@ -64,6 +67,7 @@ class OrbundEnrollmentController extends Controller
                 'booking_date'      => now(),
                 'registration_type' => 'individual',
                 'source'            => $data['source'] ?? null,
+                'lead_id'           => $data['lead_id'] ?? null,
                 'trial_ref_id'      => $data['trial_ref_id'] ?? null,
             ]);
 
@@ -84,6 +88,11 @@ class OrbundEnrollmentController extends Controller
             }
 
             DB::commit();
+
+            if (!empty($data['lead_id']) && ($lead = Lead::find($data['lead_id']))) {
+                $this->leadLifecycle->transition($lead, 'pre_registered', null, 'Trial booked online', 'trial_booked');
+                $lead->update(['is_registered' => true, 'registered_at' => $lead->registered_at ?? now(), 'user_id' => $user->id]);
+            }
 
             $firstStudent = $data['students'][0] ?? [];
             $notifPayload = [

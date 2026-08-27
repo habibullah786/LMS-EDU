@@ -15,6 +15,51 @@ class NotificationService
         $this->adminEmail = config('services.sendgrid.admin_email', 'admin@exceedrobotics.com');
     }
 
+    public function leadReceived(array $data): void
+    {
+        $name = $data['name'] ?? 'there';
+        $email = $data['email'] ?? '';
+        $course = htmlspecialchars($data['course'] ?? 'Robotics or Coding', ENT_QUOTES, 'UTF-8');
+        if (!$email) return;
+
+        SendEmailNotification::dispatch(
+            $email,
+            $name,
+            'We received your Exceed Robotics inquiry',
+            $this->buildEmail($name, 'Thanks for your interest!', "
+                <p>We received your inquiry about <strong>{$course}</strong>.</p>
+                <p>Our team will follow up if you need help. You can also choose an available free trial class online.</p>
+                <p style='margin-top:24px;'><a href='https://exceedrobotics.com/trial' style='background:#1e3f8b;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;'>Book a Free Trial</a></p>
+            "),
+            'lead_received'
+        );
+    }
+
+    public function trialBooked(array $data): void
+    {
+        $name = $data['parentName'] ?? 'there'; $email = $data['parentEmail'] ?? ''; $phone = $data['parentPhone'] ?? '';
+        $child = $data['childName'] ?? 'your child'; $class = $data['className'] ?? ''; $location = $data['location'] ?? '';
+        $date = $data['date'] ?? ''; $time = $data['time'] ?? '';
+        $calendar = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='.rawurlencode('Exceed Robotics Trial - '.$class).'&dates='.preg_replace('/\D/', '', $date).'/'.preg_replace('/\D/', '', $date).'&location='.rawurlencode($location);
+        if ($email) SendEmailNotification::dispatch($email, $name, "Trial booked - {$class}", $this->buildEmail($name, 'Your trial is booked', "<p><strong>".e($child)."</strong> is booked for <strong>".e($class)."</strong>.</p><p>Date: ".e($date)."<br>Time: ".e($time)."<br>Location: ".e($location)."</p><p><a href='{$calendar}'>Add to calendar</a></p>"), 'trial_booked');
+        if ($phone) SendSmsNotification::dispatch($phone, "Exceed Robotics trial booked for {$child}: {$date} {$time}, {$location}.", 'trial_booked');
+    }
+
+    public function trialThankYou(array $data): void
+    {
+        $name = $data['parentName'] ?? 'there'; $email = $data['parentEmail'] ?? '';
+        if ($email) SendEmailNotification::dispatch($email, $name, 'Thank you for visiting Exceed Robotics', $this->buildEmail($name, 'Thanks for joining us!', "<p>We hope ".e($data['childName'] ?? 'your child')." enjoyed the trial class.</p><p><a href='".e(config('services.survey_url'))."'>Share your feedback</a></p>"), 'trial_attended_thank_you');
+    }
+
+    public function paidEnrollmentComplete(\App\Models\Enrollment $enrollment): void
+    {
+        $student = $enrollment->students->first(); $class = $enrollment->schoolClass;
+        $receipt = $enrollment->payments->first()?->transaction_id ?: 'Recorded by Exceed Robotics';
+        $body = "<p>Your Term 1 enrollment is confirmed.</p><p><strong>Class:</strong> ".e($class?->curriculum ?? $student?->class_name ?? '')."<br><strong>Schedule:</strong> ".e(($class?->date ?? '').' '.($class?->time ?? ''))."<br><strong>Location:</strong> ".e($student?->location ?? '')."<br><strong>Amount:</strong> $".number_format((float) $enrollment->total_amount, 2)." CAD<br><strong>Receipt reference:</strong> ".e($receipt)."</p><p>Class materials and preparation details will be shared before the first session.</p>";
+        SendEmailNotification::dispatch($enrollment->parent_email, $enrollment->parent_name, 'Term 1 enrollment confirmed', $this->buildEmail($enrollment->parent_name, 'Welcome to Term 1!', $body), 'paid_enrollment_confirmed');
+        if ($enrollment->parent_phone) SendSmsNotification::dispatch($enrollment->parent_phone, 'Exceed Robotics: Your Term 1 enrollment and payment are confirmed. Welcome!', 'paid_enrollment_confirmed');
+    }
+
     // ─── Public trigger methods ────────────────────────────────────────────────
 
     public function userRegistered(array $data): void

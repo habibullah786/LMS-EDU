@@ -5,10 +5,11 @@ namespace App\Services;
 use App\Models\Enrollment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\SchoolClass;
 
 class TrialConfirmationService
 {
-    public function __construct(private NotificationService $notifications) {}
+    public function __construct(private NotificationService $notifications, private LeadLifecycleService $leadLifecycle) {}
 
     public function issueToken(Enrollment $enrollment): string
     {
@@ -40,6 +41,9 @@ class TrialConfirmationService
                 'confirmation_responded_at' => now(),
                 'confirmation_response_channel' => $channel,
             ]);
+            if ($target === 'cancelled' && $locked->school_class_id) {
+                SchoolClass::whereKey($locked->school_class_id)->lockForUpdate()->increment('available_slots');
+            }
 
             $student = $locked->trialStudents->first();
             $payload = [
@@ -56,6 +60,12 @@ class TrialConfirmationService
                 ? $this->notifications->enrollmentConfirmed($payload)
                 : $this->notifications->enrollmentCancelled($payload);
             $this->notifications->fireEventWorkflows('enrollment_'.$target, $payload);
+
+            if ($target === 'confirmed' && $locked->lead_id && ($lead = \App\Models\Lead::find($locked->lead_id))) {
+                $this->leadLifecycle->transition($lead, 'trial_scheduled', null, 'Trial confirmed by parent', 'trial_confirmed');
+            } elseif ($target === 'cancelled' && $locked->lead_id && ($lead = \App\Models\Lead::find($locked->lead_id))) {
+                $this->leadLifecycle->transition($lead, 'post_registered', null, 'Trial cancelled by parent', 'trial_cancelled');
+            }
 
             return ['status' => $target, 'changed' => true];
         });

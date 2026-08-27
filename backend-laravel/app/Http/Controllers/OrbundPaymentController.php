@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Enrollment;
 use App\Models\Payment;
+use App\Models\Lead;
+use App\Services\LeadProcessService;
+use App\Services\LeadLifecycleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class OrbundPaymentController extends Controller
 {
+    public function __construct(private LeadProcessService $leadProcess, private LeadLifecycleService $leadLifecycle) {}
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -43,6 +48,12 @@ class OrbundPaymentController extends Controller
             'is_paid' => true,
             'status'  => 'confirmed',
         ]);
+
+        if ($enrollment->lead_id && ($lead = Lead::find($enrollment->lead_id))) {
+            $this->leadProcess->activatePaidEnrollment($lead, $enrollment, null, false);
+            $enrollment->update(['orbund_sync_status' => 'synced', 'orbund_student_id' => $enrollment->trial_ref_id, 'orbund_sync_at' => now(), 'orbund_sync_error' => null]);
+            $this->leadLifecycle->transition($lead, 'confirmed_on_orbund', null, 'Enrollment confirmed by Orbund payment flow', 'orbund_sync_succeeded');
+        }
 
         return response()->json([
             'message'    => 'Payment recorded successfully',

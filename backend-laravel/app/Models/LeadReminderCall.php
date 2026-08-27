@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class LeadReminderCall extends Model
 {
     public $timestamps = false;
-    protected $fillable = ['lead_id', 'called_by', 'called_at'];
+    protected $fillable = ['lead_id', 'called_by', 'called_at', 'outcome_code', 'notes'];
     protected $casts = ['called_at' => 'datetime'];
 
     public function lead(): BelongsTo { return $this->belongsTo(Lead::class); }

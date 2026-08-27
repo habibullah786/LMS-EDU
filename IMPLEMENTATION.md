@@ -174,6 +174,44 @@ POST   /api/admin/orbund-classes/sync
 
 ---
 
+## Lead Pipeline
+
+The lead pipeline extends the existing public `POST /api/leads` flow without removing its legacy registration and reminder fields.
+
+- `leads.status` stores the canonical lifecycle status.
+- `lead_activities` stores notes, status history, QA, follow-up, call, spam, and duplicate audit events.
+- `lead_reminder_calls` stores optional outcome codes and notes.
+- `POST /api/admin/leads/{lead}/actions` supports notes, spam, duplicates, QA confirmation, follow-up scheduling, and reason-required status overrides.
+- New lead capture dispatches the `lead_received` confirmation once, only on first creation.
+- Day 1/3/7 reminders exclude registered, spam, and duplicate leads.
+- Trial enrollment accepts `lead_id`, linking downstream trial, attendance, payment, and confirmation events to the originating lead.
+- `LeadProcessController` provides protected trial booking/rescheduling, decision, manual enrollment/payment, roster, reporting, and Orbund actions.
+- `LeadProcessService` performs class-capacity mutations inside database transactions.
+- `lead_nurture_steps` stores consent-aware nurture schedules; `leads:send-nurture` runs hourly.
+- `lead_messages` stores signed inbound SMS messages and provider IDs.
+- `SyncEnrollmentToOrbund` queues enrollment sync with retry/backoff; missing configuration uses the manual-confirmation state.
+
+Run migrations before using the pipeline:
+
+```bash
+php artisan migrate
+```
+
+Production scheduling and queue requirements:
+
+```bash
+php artisan queue:work
+php artisan schedule:run
+```
+
+Optional Orbund integration configuration:
+
+```env
+ORBUND_SYNC_URL=https://your-orbund-integration.example.com/enrollments
+ORBUND_API_TOKEN=replace-with-secure-token
+SURVEY_URL=https://your-site.example.com/trial-survey
+```
+
 ## Notification System
 
 ### How it works

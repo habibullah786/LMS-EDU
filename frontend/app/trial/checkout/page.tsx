@@ -88,6 +88,7 @@ export default function CheckoutPage() {
     try {
       const { pageUrl, course } = JSON.parse(reg);
       const res = await lmsApi.saveTrialEnrollment({
+        lead_id: Number(localStorage.getItem('lms_lead_id')) || undefined,
         parent_name: name,
         parent_email: email,
         parent_phone: phone,

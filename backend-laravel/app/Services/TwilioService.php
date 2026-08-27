@@ -77,9 +77,9 @@ class TwilioService
         $digits = preg_replace('/\D/', '', $phone);
 
         if (strlen($digits) === 10) {
-            return '+91'.$digits;
+            return '+1'.$digits;
         }
-        if (strlen($digits) === 12 && str_starts_with($digits, '91')) {
+        if (strlen($digits) === 11 && str_starts_with($digits, '1')) {
             return '+'.$digits;
         }
         if (strlen($digits) >= 10 && strlen($digits) <= 15) {

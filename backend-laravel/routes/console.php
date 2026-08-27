@@ -26,4 +26,6 @@ Schedule::command('leads:send-registration-reminders')
     ->dailyAt('09:15')
     ->withoutOverlapping();
 
+Schedule::command('leads:send-nurture')->hourly()->withoutOverlapping();
+
 

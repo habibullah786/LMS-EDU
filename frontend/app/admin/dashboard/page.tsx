@@ -33,15 +33,21 @@ type Filters = { location: string; course: string; status: string; dateRange: st
 type DashboardCounts = { enrollments: number; pending_enrollments: number; leads: number; trial_enrollments: number; parents: number; users: number; classes: number; notification_logs: number; notification_logs_sent: number; workflows: number; revenue: number };
 
 type AppUser = { id: number; name: string; email: string; phone: string | null; role: string; access_level?: string; permissions?: Record<string, string[]>; created_at: string };
-type LeadReminderCall = { id: number; called_at: string; operator?: { id: number; name: string } | null };
+type LeadReminderCall = { id: number; called_at: string; outcome_code?: string | null; notes?: string | null; operator?: { id: number; name: string } | null };
 type LeadReminderEmail = { id: number; reminder_day: number; sent_at: string };
-type Lead = { id: number; name: string; email: string; phone: string; age_group: string | null; course: string | null; location: string | null; source: string; is_registered: boolean; reminder_call_count: number; reminder_call_time: string | null; reminder_calls: LeadReminderCall[]; scheduled_call_time: string | null; reminder_email_count: number; reminder_email_time: string | null; reminder_emails: LeadReminderEmail[]; next_reminder_email_at: string | null; created_at: string; updated_at: string };
+type LeadActivity = { id: number; type: string; notes?: string | null; from_status?: string | null; to_status?: string | null; occurred_at: string; actor?: { id: number; name: string } | null };
+type LeadTrialStudent = { id: number; first_name: string; last_name: string; school_class_id?: number | null; class_date?: string | null; class_time?: string | null; enroll_decision?: string | null };
+type LeadEnrollment = { id: number; status: string; enrollment_source?: string | null; orbund_sync_status?: string | null; orbund_student_id?: string | null; trial_students?: LeadTrialStudent[] };
+type Lead = { id: number; name: string; email: string; phone: string; age_group: string | null; course: string | null; location: string | null; source: string; status: string; is_registered: boolean; is_spam: boolean; duplicate_of_lead_id?: number | null; data_confirmed_at?: string | null; follow_up_at?: string | null; follow_up_required?: boolean; reminder_call_count: number; reminder_call_time: string | null; reminder_calls: LeadReminderCall[]; scheduled_call_time: string | null; reminder_email_count: number; reminder_email_time: string | null; reminder_emails: LeadReminderEmail[]; activities?: LeadActivity[]; enrollments?: LeadEnrollment[]; next_reminder_email_at: string | null; created_at: string; updated_at: string };
+type LeadPipelineReport = { total_leads: number; trial_bookings: number; attended_trials: number; paid_enrollments: number; lead_to_trial_rate: number; trial_to_enrollment_rate: number };
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const API_URL = API_BASE_URL;
 const ACCESS_MODULES = ['leads', 'trial_enrollments', 'parents', 'users', 'classes', 'notifications', 'workflows', 'attendance', 'settings'] as const;
 const ACCESS_ACTIONS = ['view', 'edit', 'delete'] as const;
+const LEAD_STATUSES = ['lead_received', 'post_registered', 'pre_registered', 'trial_scheduled', 'attended_trial', 'missed_trial', 'decides_to_enroll', 'did_not_enroll', 'enrolled_term_1', 'confirmed_on_orbund', 'dropped_spam', 'duplicate'] as const;
+const leadStatusLabel = (status: string) => status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
 const KEYS = {
   locations: 'exceed_config_locations',
@@ -308,28 +314,156 @@ export default function AdminDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [callTimes, setCallTimes] = useState<Record<number, string>>({});
-  const [scheduledCallTimes, setScheduledCallTimes] = useState<Record<number, string>>({});
+  const [callOutcomes, setCallOutcomes] = useState<Record<number, string>>({});
+  const [callNotes, setCallNotes] = useState<Record<number, string>>({});
+  const [leadSearch, setLeadSearch] = useState('');
+  const [leadStatusFilter, setLeadStatusFilter] = useState('All');
+  const [leadActionBusy, setLeadActionBusy] = useState<number | null>(null);
+  const [leadReport, setLeadReport] = useState<LeadPipelineReport | null>(null);
+  const reloadLeads = async () => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    const [leadResponse, reportResponse] = await Promise.all([
+      fetch(`${API_URL}/admin/leads?per_page=100`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API_URL}/admin/lead-pipeline/report`, { headers: { Authorization: `Bearer ${token}` } }),
+    ]);
+    const leadData = await leadResponse.json();
+    setLeads(Array.isArray(leadData) ? leadData : (leadData.data ?? []));
+    if (reportResponse.ok) setLeadReport(await reportResponse.json());
+  };
   useEffect(() => {
     if (view !== 'leads' || !user || user.role !== 'admin') return;
     const token = localStorage.getItem('auth_token');
     if (!token) return;
     setLeadsLoading(true);
-    fetch(`${API_URL}/admin/leads?per_page=100`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(data => setLeads(Array.isArray(data) ? data : (data.data ?? [])))
-      .catch(() => setLeads([])).finally(() => setLeadsLoading(false));
+    reloadLeads().catch(() => setLeads([])).finally(() => setLeadsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, user]);
 
-  const updateLeadRegistration = async (leadId: number, isRegistered: boolean) => {
+  const visibleLeads = useMemo(() => leads.filter(lead => {
+    if (leadStatusFilter !== 'All' && lead.status !== leadStatusFilter) return false;
+    const term = leadSearch.trim().toLowerCase();
+    return !term || [lead.name, lead.email, lead.phone, lead.course, lead.location].some(value => value?.toLowerCase().includes(term));
+  }), [leads, leadSearch, leadStatusFilter]);
+
+  const performLeadAction = async (leadId: number, payload: Record<string, unknown>) => {
     const token = localStorage.getItem('auth_token');
     if (!token) return;
-    const response = await fetch(`${API_URL}/admin/leads/${leadId}/registration`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ is_registered: isRegistered }),
-    });
-    if (!response.ok) return;
-    const data = await response.json();
-    setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
+    setLeadActionBusy(leadId);
+    try {
+      const response = await fetch(`${API_URL}/admin/leads/${leadId}/actions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Lead action failed');
+      setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Lead action failed');
+    } finally { setLeadActionBusy(null); }
+  };
+
+  const addLeadNote = (leadId: number) => {
+    const notes = window.prompt('Add a note to this lead:');
+    if (notes?.trim()) void performLeadAction(leadId, { action: 'add_note', notes: notes.trim() });
+  };
+
+  const setLeadFollowUp = (leadId: number) => {
+    const value = window.prompt('Follow-up date and time (example: 2026-08-20 10:30):');
+    if (!value) return;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) { window.alert('Enter a valid date and time.'); return; }
+    void performLeadAction(leadId, { action: 'set_follow_up', follow_up_at: parsed.toISOString() });
+  };
+
+  const overrideLeadStatus = (leadId: number, status: string) => {
+    const reason = window.prompt(`Reason for changing status to ${leadStatusLabel(status)}:`);
+    if (!reason?.trim()) return;
+    void performLeadAction(leadId, { action: 'override_status', status, reason: reason.trim() });
+  };
+
+  const markLeadSpam = (leadId: number) => {
+    const reason = window.prompt('Why is this lead spam?');
+    if (reason?.trim()) void performLeadAction(leadId, { action: 'mark_spam', reason: reason.trim() });
+  };
+
+  const markLeadDuplicate = (leadId: number) => {
+    const original = window.prompt('Enter the original lead ID:');
+    if (original && Number(original) > 0) void performLeadAction(leadId, { action: 'mark_duplicate', duplicate_of_lead_id: Number(original) });
+  };
+
+  const postLeadProcess = async (leadId: number, path: string, payload: Record<string, unknown>, method = 'POST') => {
+    const token = localStorage.getItem('auth_token'); if (!token) return;
+    setLeadActionBusy(leadId);
+    try {
+      const response = await fetch(`${API_URL}/admin/${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || Object.values(data.errors ?? {}).flat().join(' ') || 'Action failed');
+      await reloadLeads();
+    } catch (error) { window.alert(error instanceof Error ? error.message : 'Action failed'); }
+    finally { setLeadActionBusy(null); }
+  };
+
+  const bookLeadTrial = (lead: Lead) => {
+    const available = classes.filter(item => item.type === 'Trial' && item.availableSlots > 0);
+    const classId = window.prompt(`Trial class ID (${available.map(item => `${item.id}: ${item.curriculum}`).join(', ')}):`); if (!classId) return;
+    const firstName = window.prompt('Student first name:'); if (!firstName) return;
+    const lastName = window.prompt('Student last name:'); if (!lastName) return;
+    void postLeadProcess(lead.id, `leads/${lead.id}/book-trial`, { school_class_id: Number(classId), first_name: firstName, last_name: lastName, booked_by: 'admin' });
+  };
+
+  const recordLeadDecision = (lead: Lead) => {
+    const decision = window.prompt('Enrollment decision: yes, no, or pending', 'pending')?.toLowerCase();
+    if (!decision || !['yes', 'no', 'pending'].includes(decision)) return;
+    const reasonCode = decision === 'no' ? window.prompt('Reason: price, distance, schedule, not_ready, program_fit, competitor, decision_maker, follow_up_later, other', 'other') : undefined;
+    const notes = window.prompt('Decision notes (optional):') || undefined;
+    void postLeadProcess(lead.id, `leads/${lead.id}/decision`, { decision, reason_code: reasonCode, notes });
+  };
+
+  const enrollLead = (lead: Lead) => {
+    const available = classes.filter(item => item.type === 'Paid' && item.availableSlots > 0);
+    const classId = window.prompt(`Paid class ID (${available.map(item => `${item.id}: ${item.curriculum}`).join(', ')}):`); if (!classId) return;
+    const source = window.prompt('Enrollment source: front_desk or admin_call', 'front_desk'); if (!source || !['front_desk', 'admin_call'].includes(source)) return;
+    const amount = window.prompt('Payment amount (CAD):', String(available.find(item => item.id === classId)?.price ?? 0)); if (amount === null) return;
+    const paymentStatus = window.prompt('Payment status: paid or pending', 'paid'); if (!paymentStatus || !['paid', 'pending'].includes(paymentStatus)) return;
+    const paymentMethod = paymentStatus === 'paid' ? window.prompt('Payment method:', 'terminal') : undefined;
+    const transactionId = paymentStatus === 'paid' ? window.prompt('Receipt / transaction reference (optional):') : undefined;
+    const hasTrialStudent = Boolean(lead.enrollments?.some(item => item.trial_students?.length));
+    const firstName = hasTrialStudent ? undefined : window.prompt('Student first name:') || undefined;
+    const lastName = hasTrialStudent ? undefined : window.prompt('Student last name:') || undefined;
+    const dateOfBirth = hasTrialStudent ? undefined : window.prompt('Student date of birth (YYYY-MM-DD):') || undefined;
+    void postLeadProcess(lead.id, `leads/${lead.id}/enroll`, { source, school_class_id: Number(classId), amount: Number(amount), payment_status: paymentStatus, payment_method: paymentMethod, transaction_id: transactionId, waiver_signed: true, first_name: firstName, last_name: lastName, date_of_birth: dateOfBirth });
+  };
+
+  const rescheduleLeadTrial = (lead: Lead) => {
+    const student = lead.enrollments?.flatMap(item => item.trial_students ?? [])[0]; if (!student) { window.alert('No trial booking found.'); return; }
+    const classId = window.prompt('New trial class ID:'); if (!classId) return;
+    const reason = window.prompt('Reschedule reason:'); if (!reason) return;
+    void postLeadProcess(lead.id, `trial-students/${student.id}/reschedule`, { school_class_id: Number(classId), reason }, 'PATCH');
+  };
+
+  const confirmLeadOrbund = (lead: Lead) => {
+    const enrollment = lead.enrollments?.find(item => item.enrollment_source && item.enrollment_source !== 'trial'); if (!enrollment) { window.alert('No paid enrollment found.'); return; }
+    const orbId = window.prompt('Orbund student ID:'); if (!orbId) return;
+    void postLeadProcess(lead.id, `enrollments/${enrollment.id}/orbund/confirm`, { orbund_student_id: orbId, notes: 'Confirmed from lead pipeline' });
+  };
+
+  const assignLeadRoster = (lead: Lead) => {
+    const enrollment = lead.enrollments?.find(item => item.enrollment_source && item.enrollment_source !== 'trial'); if (!enrollment) { window.alert('No paid enrollment found.'); return; }
+    const classId = window.prompt('New paid class ID:'); if (!classId) return;
+    void postLeadProcess(lead.id, `enrollments/${enrollment.id}/assign-class`, { school_class_id: Number(classId) }, 'PATCH');
+  };
+
+  const retryLeadOrbund = (lead: Lead) => {
+    const enrollment = lead.enrollments?.find(item => item.enrollment_source && item.enrollment_source !== 'trial'); if (!enrollment) { window.alert('No paid enrollment found.'); return; }
+    void postLeadProcess(lead.id, `enrollments/${enrollment.id}/orbund/retry`, {});
+  };
+
+  const completeLeadPayment = (lead: Lead) => {
+    const enrollment = lead.enrollments?.find(item => item.enrollment_source && item.enrollment_source !== 'trial' && item.status !== 'active'); if (!enrollment) { window.alert('No pending paid enrollment found.'); return; }
+    const amount = window.prompt('Payment amount (CAD):'); if (amount === null) return;
+    const paymentMethod = window.prompt('Payment method:', 'terminal'); if (!paymentMethod) return;
+    const transactionId = window.prompt('Receipt / transaction reference (optional):') || undefined;
+    void postLeadProcess(lead.id, `enrollments/${enrollment.id}/complete-payment`, { amount: Number(amount), payment_method: paymentMethod, transaction_id: transactionId });
   };
 
   const addReminderCall = async (leadId: number) => {
@@ -338,27 +472,14 @@ export default function AdminDashboard() {
     if (!token || !calledAt) return;
     const response = await fetch(`${API_URL}/admin/leads/${leadId}/calls`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ called_at: new Date(calledAt).toISOString() }),
+      body: JSON.stringify({ called_at: new Date(calledAt).toISOString(), outcome_code: callOutcomes[leadId] || undefined, notes: callNotes[leadId]?.trim() || undefined }),
     });
     if (!response.ok) return;
     const data = await response.json();
     setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
     setCallTimes(current => ({ ...current, [leadId]: '' }));
-  };
-
-  const saveScheduledCall = async (leadId: number) => {
-    const token = localStorage.getItem('auth_token');
-    const scheduledAt = scheduledCallTimes[leadId];
-    if (!token || !scheduledAt) return;
-    const response = await fetch(`${API_URL}/admin/leads/${leadId}/call-schedule`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ scheduled_call_time: new Date(scheduledAt).toISOString() }),
-    });
-    if (!response.ok) return;
-    const data = await response.json();
-    setLeads(current => current.map(lead => lead.id === leadId ? data.lead : lead));
-    setScheduledCallTimes(current => ({ ...current, [leadId]: '' }));
+    setCallOutcomes(current => ({ ...current, [leadId]: '' }));
+    setCallNotes(current => ({ ...current, [leadId]: '' }));
   };
 
   // Users
@@ -1304,44 +1425,59 @@ export default function AdminDashboard() {
           {/* ══════ USERS ══════ */}
           {view === 'leads' && (
             <div className="dashboard-card p-6 space-y-5">
-              <div><h1 className="text-xl font-semibold text-gray-900">Leads</h1><p className="text-xs text-gray-400 mt-0.5">All step-one submissions, including registered parents</p></div>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div><h1 className="text-xl font-semibold text-gray-900">Lead Pipeline</h1><p className="text-xs text-gray-400 mt-0.5">Capture, qualify, follow up, and move families toward trial enrollment</p></div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input value={leadSearch} onChange={e => setLeadSearch(e.target.value)} placeholder="Search name, email, phone…" className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+                  <select value={leadStatusFilter} onChange={e => setLeadStatusFilter(e.target.value)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                    <option value="All">All statuses</option>{LEAD_STATUSES.map(status => <option key={status} value={status}>{leadStatusLabel(status)}</option>)}
+                  </select>
+                </div>
+              </div>
+              {leadReport && <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+                {[
+                  ['Leads', leadReport.total_leads], ['Trials', leadReport.trial_bookings], ['Attended', leadReport.attended_trials],
+                  ['Enrolled', leadReport.paid_enrollments], ['Lead → Trial', `${leadReport.lead_to_trial_rate}%`], ['Trial → Enrolled', `${leadReport.trial_to_enrollment_rate}%`],
+                ].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-gray-100 bg-gray-50 p-3"><div className="text-[11px] uppercase text-gray-400">{label}</div><div className="mt-1 text-lg font-semibold text-gray-900">{value}</div></div>)}
+              </div>}
               {leadsLoading ? <p className="py-12 text-center text-gray-400">Loading leads…</p> : leads.length === 0 ? (
                 <p className="py-16 text-center text-gray-400">No leads yet.</p>
               ) : (
                 <div className="overflow-x-auto rounded-xl border border-gray-100"><table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-left text-xs text-gray-500 uppercase"><tr>{['Name','Email','Phone','Course','Age Group','Location','Registered','Reminder Call Count','Reminder Call Time','Scheduled Call Time','Reminder Email Count','Reminder Email Time','Submitted','Updated At'].map(h => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
-                  <tbody className="divide-y divide-gray-50">{leads.map(lead => <tr key={lead.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{lead.name}</td><td className="px-4 py-3">{lead.email}</td><td className="px-4 py-3">{lead.phone}</td>
-                    <td className="px-4 py-3">{lead.course || '—'}</td><td className="px-4 py-3">{lead.age_group || '—'}</td><td className="px-4 py-3">{lead.location || '—'}</td>
-                    <td className="px-4 py-3"><select value={lead.is_registered ? 'yes' : 'no'} onChange={e => updateLeadRegistration(lead.id, e.target.value === 'yes')}
-                      className={`rounded-full px-2 py-1 text-xs font-medium border-0 ${lead.is_registered ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                      <option value="no">No</option><option value="yes">Yes</option>
-                    </select></td>
-                    <td className="px-4 py-3 whitespace-nowrap"><span className="font-medium">{lead.reminder_call_count ?? 0}</span></td>
+                  <thead className="bg-gray-50 text-left text-xs text-gray-500 uppercase"><tr>{['Lead','Status','Course / Location','Follow-up','Calls','Email Reminders','QA','Actions','Submitted'].map(h => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead>
+                  <tbody className="divide-y divide-gray-50">{visibleLeads.map(lead => <tr key={lead.id} className="hover:bg-gray-50 align-top">
+                    <td className="px-4 py-3 min-w-[220px]"><div className="font-medium text-gray-900">{lead.name} <span className="text-xs text-gray-400">#{lead.id}</span></div><div className="text-xs text-gray-500">{lead.email}</div><div className="text-xs text-gray-500">{lead.phone}</div></td>
+                    <td className="px-4 py-3 min-w-[190px]"><select value={lead.status || 'lead_received'} disabled={leadActionBusy === lead.id} onChange={e => overrideLeadStatus(lead.id, e.target.value)} className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium"><option value={lead.status}>{leadStatusLabel(lead.status || 'lead_received')}</option>{LEAD_STATUSES.filter(status => status !== lead.status).map(status => <option key={status} value={status}>{leadStatusLabel(status)}</option>)}</select><div className="mt-2 text-[11px] text-gray-400">Account: {lead.is_registered ? 'registered' : 'not registered'}</div></td>
+                    <td className="px-4 py-3 min-w-[160px]"><div>{lead.course || '—'}</div><div className="text-xs text-gray-500">{lead.age_group || '—'}</div><div className="text-xs text-gray-500">{lead.location || '—'}</div></td>
+                    <td className="px-4 py-3 min-w-[190px]"><div className={lead.follow_up_at && new Date(lead.follow_up_at) <= new Date() ? 'font-medium text-red-600' : 'text-gray-600'}>{lead.follow_up_at ? new Date(lead.follow_up_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not scheduled'}</div><button onClick={() => setLeadFollowUp(lead.id)} className="mt-2 text-xs font-medium text-blue-600 hover:underline">Set follow-up</button></td>
                     <td className="px-4 py-3 text-xs text-gray-500 min-w-[240px]">
-                      {lead.reminder_calls?.length ? <div className="space-y-1 mb-2">{lead.reminder_calls.map(call => <div key={call.id}>{new Date(call.called_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</div>)}</div> : <div className="mb-2">—</div>}
-                      <div className="flex items-center gap-1">
+                      <div className="mb-1 font-medium text-gray-700">{lead.reminder_call_count ?? 0} logged</div>{lead.reminder_calls?.length ? <div className="space-y-1 mb-2">{lead.reminder_calls.slice(-3).map(call => <div key={call.id}>{new Date(call.called_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}{call.outcome_code ? ` · ${leadStatusLabel(call.outcome_code)}` : ''}</div>)}</div> : <div className="mb-2">—</div>}
+                      <div className="space-y-1">
                         <input type="datetime-local" value={callTimes[lead.id] ?? ''}
                           onChange={e => setCallTimes(current => ({ ...current, [lead.id]: e.target.value }))}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700" />
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700" />
+                        <select value={callOutcomes[lead.id] ?? ''} onChange={e => setCallOutcomes(current => ({ ...current, [lead.id]: e.target.value }))} className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700"><option value="">Outcome (optional)</option><option value="no_answer">No answer</option><option value="left_voicemail">Left voicemail</option><option value="trial_booked">Trial booked</option><option value="follow_up_needed">Follow-up needed</option><option value="not_interested">Not interested</option><option value="invalid_number">Invalid number</option><option value="do_not_contact">Requested no contact</option></select>
+                        <input value={callNotes[lead.id] ?? ''} onChange={e => setCallNotes(current => ({ ...current, [lead.id]: e.target.value }))} placeholder="Call notes (optional)" className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700" />
                         <button disabled={!callTimes[lead.id]} onClick={() => addReminderCall(lead.id)}
-                          className="rounded-lg bg-blue-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-40">Add</button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 min-w-[240px]">
-                      <div className="mb-2 whitespace-nowrap">{lead.scheduled_call_time ? new Date(lead.scheduled_call_time).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not scheduled'}</div>
-                      <div className="flex items-center gap-1">
-                        <input type="datetime-local" value={scheduledCallTimes[lead.id] ?? ''}
-                          onChange={e => setScheduledCallTimes(current => ({ ...current, [lead.id]: e.target.value }))}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700" />
-                        <button disabled={!scheduledCallTimes[lead.id]} onClick={() => saveScheduledCall(lead.id)}
-                          className="rounded-lg bg-indigo-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-40">Save</button>
+                          className="w-full rounded-lg bg-blue-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-40">Log call</button>
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap"><span className="font-medium text-gray-700">{lead.reminder_email_count ?? 0} / 3</span>{lead.next_reminder_email_at && <div className="text-[11px] text-blue-600">Next: {new Date(lead.next_reminder_email_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</div>}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{lead.reminder_emails?.length ? <div className="space-y-1">{lead.reminder_emails.map(email => <div key={email.id}><span className="font-medium text-gray-600">Day {email.reminder_day}:</span> {new Date(email.sent_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</div>)}</div> : (lead.is_registered ? 'Stopped — registered' : 'Not sent')}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">{lead.data_confirmed_at ? <span className="font-medium text-green-700">Verified<br />{new Date(lead.data_confirmed_at).toLocaleDateString('en-CA')}</span> : <button onClick={() => performLeadAction(lead.id, { action: 'confirm_data' })} className="font-medium text-emerald-600 hover:underline">Confirm data</button>}</td>
+                    <td className="px-4 py-3 min-w-[260px]"><div className="flex flex-wrap gap-1">
+                      <button disabled={leadActionBusy === lead.id} onClick={() => bookLeadTrial(lead)} className="rounded bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">Book trial</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => rescheduleLeadTrial(lead)} className="rounded bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700">Reschedule</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => recordLeadDecision(lead)} className="rounded bg-orange-50 px-2 py-1 text-xs font-medium text-orange-700">Decision</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => enrollLead(lead)} className="rounded bg-green-50 px-2 py-1 text-xs font-medium text-green-700">Enroll</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => completeLeadPayment(lead)} className="rounded bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Record payment</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => assignLeadRoster(lead)} className="rounded bg-lime-50 px-2 py-1 text-xs font-medium text-lime-700">Assign roster</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => confirmLeadOrbund(lead)} className="rounded bg-cyan-50 px-2 py-1 text-xs font-medium text-cyan-700">Confirm Orbund</button>
+                      <button disabled={leadActionBusy === lead.id} onClick={() => retryLeadOrbund(lead)} className="rounded bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">Retry Orbund</button>
+                      <button onClick={() => addLeadNote(lead.id)} className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">Add note</button>
+                      <button onClick={() => markLeadDuplicate(lead.id)} className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Duplicate</button>
+                      <button onClick={() => markLeadSpam(lead.id)} className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700">Spam</button>
+                    </div>{lead.activities?.[0] && <div className="mt-2 text-[11px] text-gray-400">Latest: {leadStatusLabel(lead.activities[0].type)}</div>}{lead.enrollments?.find(item => item.enrollment_source && item.enrollment_source !== 'trial') && <div className="mt-1 text-[11px] text-cyan-700">Orbund: {leadStatusLabel(lead.enrollments.find(item => item.enrollment_source && item.enrollment_source !== 'trial')?.orbund_sync_status || 'not_queued')}</div>}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(lead.created_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{new Date(lead.updated_at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })}</td>
                   </tr>)}</tbody>
                 </table></div>
               )}

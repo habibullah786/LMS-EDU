@@ -8,6 +8,7 @@ use App\Models\CourseClass;
 use App\Models\Enrollment;
 use App\Models\EnrollmentStudent;
 use App\Models\Payment;
+use App\Models\Lead;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use App\Services\PaymentLifecycleService;
@@ -32,6 +33,7 @@ class CheckoutController extends Controller
     public function checkout(): JsonResponse
     {
         $user = auth()->user();
+        $lead = Lead::whereRaw('LOWER(email) = ?', [strtolower($user->email)])->latest()->first();
 
         $cart = Cart::where('user_id', $user->id)->where('status', 'open')->first();
 
@@ -43,7 +45,7 @@ class CheckoutController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($cart, $user) {
+            $result = DB::transaction(function () use ($cart, $user, $lead) {
                 $items = $cart->items()->with('student')->get();
                 $total = 0;
                 $enrollmentStudentRows = [];
@@ -101,6 +103,9 @@ class CheckoutController extends Controller
                     'registration_type' => 'individual',
                     'is_paid' => $total == 0,
                     'booking_date' => now(),
+                    'lead_id' => $lead?->id,
+                    'source' => 'web',
+                    'enrollment_source' => 'web',
                 ]);
 
                 foreach ($enrollmentStudentRows as $row) {

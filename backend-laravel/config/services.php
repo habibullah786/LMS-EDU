@@ -3,6 +3,7 @@
 return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
+    'survey_url' => env('SURVEY_URL', env('FRONTEND_URL', 'http://localhost:3000').'/trial'),
 
     'sendgrid' => [
         'api_key'     => env('SENDGRID_API_KEY', ''),
@@ -22,6 +23,11 @@ return [
         'key_id' => env('RAZORPAY_KEY_ID', ''),
         'key_secret' => env('RAZORPAY_KEY_SECRET', ''),
         'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET', ''),
+    ],
+
+    'orbund' => [
+        'sync_url' => env('ORBUND_SYNC_URL', ''),
+        'api_token' => env('ORBUND_API_TOKEN', ''),
     ],
 
 ];

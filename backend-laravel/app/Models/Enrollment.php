@@ -22,6 +22,16 @@ class Enrollment extends Model
         'group_reference_id',
         'trial_ref_id',
         'source',
+        'lead_id',
+        'school_class_id',
+        'term',
+        'enrollment_source',
+        'waiver_signed_at',
+        'activated_at',
+        'orbund_student_id',
+        'orbund_sync_status',
+        'orbund_sync_at',
+        'orbund_sync_error',
         'confirmation_token_hash',
         'confirmation_token_expires_at',
         'confirmation_request_sent_at',
@@ -37,6 +47,9 @@ class Enrollment extends Model
         'confirmation_token_expires_at' => 'datetime',
         'confirmation_request_sent_at' => 'datetime',
         'confirmation_responded_at' => 'datetime',
+        'waiver_signed_at' => 'datetime',
+        'activated_at' => 'datetime',
+        'orbund_sync_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -63,6 +76,9 @@ class Enrollment extends Model
     {
         return $this->belongsTo(CourseClass::class, 'class_id');
     }
+
+    public function schoolClass(): BelongsTo { return $this->belongsTo(SchoolClass::class); }
+    public function lead(): BelongsTo { return $this->belongsTo(Lead::class); }
 
     public function scopeByStatus($query, $status)
     {

@@ -15,13 +15,15 @@ export const lmsApi = {
     location?: string; orbund_program_id?: string; orbund_campus_type?: string;
     level_id?: string; semester_id?: string; source: string; page_url?: string;
     orbund_session_id?: string;
+    postal_code?: string; preferred_call_at?: string; children_count?: number;
+    course_interest_count?: number; marketing_email_consent?: boolean; marketing_sms_consent?: boolean;
   }) {
     const res = await fetch(`${BASE}/leads`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const contentType = res.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await res.json() : null;
     if (!res.ok) throw new Error(data?.message || `Unable to save your details (API ${res.status}).`);
     if (!data) throw new Error('The API returned an invalid response.');
-    return data as { lead_id: number; is_registered: boolean };
+    return data as { lead_id: number; is_registered: boolean; status: string };
   },
 
   // ── Trial config (Step 1 form dropdowns) ─────────────────────────────────
@@ -85,6 +87,7 @@ export const lmsApi = {
     total_amount?: number;
     source?: string;
     trial_ref_id?: string | null;
+    lead_id?: number;
     location?: string;
     course?: string;
     students?: Array<{

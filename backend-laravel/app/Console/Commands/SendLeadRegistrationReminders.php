@@ -17,6 +17,9 @@ class SendLeadRegistrationReminders extends Command
     public function handle(): int
     {
         $due = Lead::where('is_registered', false)
+            ->whereIn('status', ['lead_received', 'post_registered'])
+            ->where('is_spam', false)
+            ->whereNull('duplicate_of_lead_id')
             ->where('reminder_email_count', '<', count(self::DAYS))
             ->orderBy('id')->get();
 
@@ -33,7 +36,17 @@ class SendLeadRegistrationReminders extends Command
 
             DB::transaction(function () use ($lead, $count, $day) {
                 $locked = Lead::whereKey($lead->id)->lockForUpdate()->first();
-                if (!$locked || $locked->is_registered || $locked->reminder_email_count !== $count) return;
+                if (!$locked || $locked->is_registered || $locked->is_spam || $locked->duplicate_of_lead_id || $locked->reminder_email_count !== $count) return;
+
+                if ($locked->status === 'lead_received') {
+                    $locked->update(['status' => 'post_registered']);
+                    $locked->activities()->create([
+                        'type' => 'status_changed',
+                        'from_status' => 'lead_received',
+                        'to_status' => 'post_registered',
+                        'occurred_at' => now(),
+                    ]);
+                }
 
                 DB::table('leads')->where('id', $locked->id)->update([
                     'reminder_email_count' => $count + 1,

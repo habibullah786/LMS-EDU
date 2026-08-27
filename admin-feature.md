@@ -91,6 +91,14 @@ Permissions are enforced by Laravel middleware. The frontend also hides inaccess
 ## 6. Lead Management
 
 - First-step trial form submissions create lead records.
+- New leads enter the `lead_received` lifecycle status and receive one immediate transactional confirmation email.
+- The lead lifecycle supports Lead Received, Post-Registered, Pre-Registered, Trial Scheduled, Attended Trial, Missed Trial, Decides to Enroll, Did Not Enroll, Enrolled Term 1, Confirmed on Orbund, Dropped Spam, and Duplicate.
+- Status changes are recorded in an immutable lead activity history with actor, time, previous status, new status, and reason.
+- Online trial creation, trial confirmation, attendance, and verified paid enrollment automatically advance the linked lead status.
+- Admin can add notes, schedule follow-ups, confirm lead data, mark spam, link a duplicate to its original lead, and perform a reason-required status override.
+- Call records support a structured outcome and notes in addition to the call date/time.
+- The Leads view supports lifecycle filtering and search by name, email, phone, course, or location.
+- Follow-ups due now are visually highlighted in the lead pipeline.
 - Leads remain marked `is_registered = No` until registration succeeds or an operator updates them.
 - Admin can update registration status.
 - Lead submission date/time is displayed.
@@ -103,6 +111,20 @@ Permissions are enforced by Laravel middleware. The frontend also hides inaccess
 - Reminder email history stores every sent date/time.
 - Automatic lead reminder schedule supports day 1, day 3, and day 7.
 - Reminder emails stop when the lead becomes registered.
+- Reminder emails also stop for spam and duplicate leads.
+- Staff can book an available Trial class directly from the lead pipeline; capacity is reserved transactionally.
+- Staff can reschedule a trial with a required reason; the original reminder state is invalidated and the new schedule is used.
+- Attendance automatically advances the lead and sends either the post-trial thank-you/survey or no-show/reschedule message.
+- Staff can record Yes/No/Pending enrollment decisions and standardized not-enrolled reasons.
+- A No decision schedules a consent-aware day 1/3/7 nurture sequence; enrollment or opt-out cancels pending steps.
+- Front-desk and admin-call Term 1 enrollments support paid or pending payment states, receipt references, waiver capture, and roster capacity reservation.
+- Pending manual payments can be completed later from the lead pipeline.
+- Paid roster assignment/reassignment is capacity-safe; price mismatches are rejected after payment.
+- Web checkout, front-desk, admin-call, and Orbund payment flows converge on the same enrolled lifecycle.
+- Paid enrollment sends a confirmation/receipt/welcome message and queues Orbund sync.
+- Orbund integration supports queued retries, visible failure/manual-required states, and authorized manual confirmation.
+- Signed inbound Twilio SMS is logged against the lead; unknown replies create a follow-up task and STOP cancels nurture consent.
+- Pipeline cards report lead, trial, attendance, enrollment, and conversion totals.
 
 ## 7. Trial Enrollments
 

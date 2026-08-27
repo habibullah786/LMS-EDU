@@ -24,6 +24,8 @@ export default function TrialRegistrationPage() {
   const [error,      setError]      = useState('');
   const [lockedUser, setLockedUser] = useState(false);
   const [lockedPhone, setLockedPhone] = useState(false);
+  const [emailConsent, setEmailConsent] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
 
   useEffect(() => {
     // Load trial config, Orbund session, and logged-in user in parallel
@@ -87,6 +89,8 @@ export default function TrialRegistrationPage() {
         orbund_campus_type: location.orbund_campus_type, level_id: ageGroup.orbund_level_id,
         semester_id: config!.semester_id, source: 'trial', page_url: pageUrl,
         orbund_session_id: localStorage.getItem('orbund_session_id') || undefined,
+        children_count: 1, course_interest_count: 1,
+        marketing_email_consent: emailConsent, marketing_sms_consent: smsConsent,
       });
       localStorage.setItem('lms_lead_id', String(lead.lead_id));
     } catch (leadError) {
@@ -219,6 +223,12 @@ export default function TrialRegistrationPage() {
                   <option key={l.id} value={l.orbund_campus_type}>{l.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+              <p className="font-medium text-gray-700">Optional updates</p>
+              <label className="flex items-start gap-2"><input type="checkbox" checked={emailConsent} onChange={e => setEmailConsent(e.target.checked)} className="mt-1" /><span>Email me about future classes and programs. I can unsubscribe anytime.</span></label>
+              <label className="flex items-start gap-2"><input type="checkbox" checked={smsConsent} onChange={e => setSmsConsent(e.target.checked)} className="mt-1" /><span>Text me about future classes and programs. Message rates may apply; reply STOP to opt out.</span></label>
             </div>
 
             <button

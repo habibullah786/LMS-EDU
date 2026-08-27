@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\TrialEnrollmentStudent;
 use App\Services\NotificationService;
+use App\Models\Lead;
+use App\Services\LeadLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-    public function __construct(private NotificationService $notifications) {}
+    public function __construct(private NotificationService $notifications, private LeadLifecycleService $leadLifecycle) {}
 
     /**
      * GET /api/admin/attendance?date=2026-07-05&curriculum=Robotics+Trial+Class+...
@@ -88,9 +90,39 @@ class AttendanceController extends Controller
      */
     public function update(Request $request, int $id): JsonResponse
     {
-        $data    = $request->validate(['attended' => ['nullable', 'boolean']]);
-        $student = TrialEnrollmentStudent::findOrFail($id);
-        $student->update(['attended' => $data['attended']]);
+        $data    = $request->validate([
+            'attended' => ['nullable', 'boolean'],
+            'missed_reason_code' => ['nullable', 'in:forgot,schedule_conflict,illness,transportation,no_longer_interested,unable_to_contact,other'],
+            'missed_reason_notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $student = TrialEnrollmentStudent::with('enrollment')->findOrFail($id);
+        $attendanceChanged = $student->attended !== $data['attended'];
+        $student->update([
+            'attended' => $data['attended'], 'attendance_marked_at' => $data['attended'] === null ? null : now(),
+            'attendance_marked_by' => $data['attended'] === null ? null : $request->user()->id,
+            'missed_reason_code' => $data['attended'] === false ? ($data['missed_reason_code'] ?? null) : null,
+            'missed_reason_notes' => $data['attended'] === false ? ($data['missed_reason_notes'] ?? null) : null,
+        ]);
+        if ($attendanceChanged && $data['attended'] !== null && $student->enrollment?->lead_id && ($lead = Lead::find($student->enrollment->lead_id))) {
+            $this->leadLifecycle->transition(
+                $lead,
+                $data['attended'] ? 'attended_trial' : 'missed_trial',
+                $request->user(),
+                'Trial attendance recorded',
+                'trial_attendance_marked',
+            );
+            $payload = [
+                'parentName' => $student->enrollment->parent_name, 'parentEmail' => $student->enrollment->parent_email,
+                'parentPhone' => $student->enrollment->parent_phone,
+                'childName' => trim($student->first_name.' '.$student->last_name), 'course' => $student->course,
+                'location' => $student->location, 'classDate' => $student->class_date?->toDateString() ?? '',
+            ];
+            $data['attended'] ? $this->notifications->trialThankYou($payload) : $this->notifications->trialNoShow($payload + [
+                'emailSubject' => 'We missed you at Exceed Robotics',
+                'emailBody' => "We missed you at the trial class. <a href='".config('services.frontend_url')."/trial'>Choose another trial time</a>.",
+                'sendSms' => true, 'smsBody' => 'We missed you at Exceed Robotics. Reschedule at exceedrobotics.com/trial',
+            ]);
+        }
         return response()->json(['attended' => $student->fresh()->attended]);
     }
 

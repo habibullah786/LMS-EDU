@@ -5,6 +5,7 @@ This document is the living inventory of implemented LMS-EDU parent-facing featu
 ## 1. Authentication and Account Access
 
 - Parents can log in or create an account through the shared authentication modal.
+- The main website navigation includes a direct link to the trial booking flow.
 - Successful login and registration close the modal and keep the parent on the page where it was opened.
 - Authenticated sessions are restored through the Laravel API.
 - The parent dashboard is protected from unauthenticated access.
@@ -23,7 +24,13 @@ This document is the living inventory of implemented LMS-EDU parent-facing featu
 - Combines trial and paid class registrations in one view.
 - Supports registration filtering and empty-state guidance.
 
-## 4. Profile and Security
+## 4. Trial Registration
+
+- Unauthenticated parents provide their name, email, and phone number in the first trial-booking step.
+- Account registration reuses those saved details and does not ask the parent to enter them again.
+- The registration screen displays a read-only summary of the details collected in step 1.
+
+## 5. Profile and Security
 
 - Parents can update their name and phone number.
 - Parents can change their password after confirming the current password.

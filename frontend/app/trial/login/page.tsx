@@ -23,14 +23,46 @@ interface CartStudent {
   _time?: string | null;
 }
 
+interface TrialParent {
+  name: string;
+  email: string;
+  phone: string;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('choice');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [trialParent, setTrialParent] = useState<TrialParent | null>(null);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [regForm, setRegForm] = useState({
+    firstName: '', lastName: '', email: '', password: '', confirm: '', phone: '',
+  });
 
   // Skip auth step if already logged in (either token)
   useEffect(() => {
+    const savedRegistration = localStorage.getItem('trial_registration');
+    if (savedRegistration) {
+      try {
+        const saved = JSON.parse(savedRegistration) as Partial<TrialParent>;
+        const name = String(saved.name ?? '').trim();
+        const email = String(saved.email ?? '').trim();
+        const phone = String(saved.phone ?? '').trim();
+        const nameParts = name.split(/\s+/).filter(Boolean);
+        const firstName = nameParts.shift() ?? '';
+        const lastName = nameParts.join(' ') || firstName;
+
+        if (name && email) {
+          setTrialParent({ name, email, phone });
+          setLoginForm(form => ({ ...form, email }));
+          setRegForm(form => ({ ...form, firstName, lastName, email, phone }));
+        }
+      } catch {
+        // Keep the manual fallback form available if saved data is invalid.
+      }
+    }
+
     const token = localStorage.getItem('auth_token');
     if (token) {
       saveEnrollmentAndContinue().catch(() => setLoading(false));
@@ -39,11 +71,6 @@ export default function LoginPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [regForm, setRegForm] = useState({
-    firstName: '', lastName: '', email: '', password: '', confirm: '', phone: '',
-  });
 
   function isAllFreeTrial(): boolean {
     try {
@@ -79,6 +106,7 @@ export default function LoginPage() {
       const { name, email, phone, locationLabel, pageUrl, course } = JSON.parse(reg);
       const cartStudents: CartStudent[] = JSON.parse(raw);
       const res = await lmsApi.saveTrialEnrollment({
+        lead_id: Number(localStorage.getItem('lms_lead_id')) || undefined,
         parent_name: name,
         parent_email: email,
         parent_phone: phone,
@@ -147,7 +175,7 @@ export default function LoginPage() {
     setLoading(true); setError('');
 
     const sessionId = localStorage.getItem('orbund_session_id') || '';
-    const fullName = `${regForm.firstName} ${regForm.lastName}`;
+    const fullName = trialParent?.name || `${regForm.firstName} ${regForm.lastName}`.trim();
     try {
       const [orbundRes, lmsRes] = await Promise.allSettled([
         orbund.register(sessionId, {
@@ -271,41 +299,35 @@ export default function LoginPage() {
         {/* Register form */}
         {mode === 'register' && (
           <form onSubmit={handleRegister} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                <input
-                  type="text" value={regForm.firstName}
-                  onChange={e => setRegForm(f => ({ ...f, firstName: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+            {trialParent ? (
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Details from step 1</p>
+                <p className="mt-2 font-medium text-gray-900">{trialParent.name}</p>
+                <p className="text-sm text-gray-600">{trialParent.email}</p>
+                <p className="text-sm text-gray-600">{trialParent.phone}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                <input
-                  type="text" value={regForm.lastName}
-                  onChange={e => setRegForm(f => ({ ...f, lastName: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-              <input
-                type="email" value={regForm.email}
-                onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-              <input
-                type="tel" value={regForm.phone}
-                onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="(416) 555-0100"
-              />
-            </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                    <input type="text" value={regForm.firstName} onChange={e => setRegForm(f => ({ ...f, firstName: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                    <input type="text" value={regForm.lastName} onChange={e => setRegForm(f => ({ ...f, lastName: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <input type="email" value={regForm.email} onChange={e => setRegForm(f => ({ ...f, email: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="tel" value={regForm.phone} onChange={e => setRegForm(f => ({ ...f, phone: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="(416) 555-0100" />
+                </div>
+              </>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
               <input
