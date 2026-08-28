@@ -42,7 +42,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('lead_id')->constrained()->cascadeOnDelete();
             $table->unsignedTinyInteger('step');
-            $table->timestamp('scheduled_at')->index();
+            $table->dateTime('scheduled_at')->index();
             $table->timestamp('sent_at')->nullable();
             $table->string('status', 20)->default('scheduled')->index();
             $table->text('error')->nullable();

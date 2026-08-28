@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->string('outcome_code', 50)->nullable();
             $table->text('notes')->nullable();
             $table->json('metadata')->nullable();
-            $table->timestamp('occurred_at');
+            $table->dateTime('occurred_at');
             $table->timestamps();
             $table->index(['lead_id', 'occurred_at']);
             $table->index(['type', 'occurred_at']);
@@ -29,4 +29,3 @@ return new class extends Migration {
         Schema::dropIfExists('lead_activities');
     }
 };
-

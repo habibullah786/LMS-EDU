@@ -13,7 +13,9 @@ return new class extends Migration {
             $table->string('name')->default('web');
             $table->string('token_hash', 64)->unique();
             $table->timestamp('last_used_at')->nullable();
-            $table->timestamp('expires_at');
+            // DATETIME avoids legacy MariaDB implicit TIMESTAMP defaults while
+            // preserving the same Laravel datetime semantics.
+            $table->dateTime('expires_at');
             $table->timestamps();
             $table->index(['user_id', 'expires_at']);
         });

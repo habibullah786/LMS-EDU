@@ -12,7 +12,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('lead_id')->constrained()->cascadeOnDelete();
             $table->foreignId('called_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->timestamp('called_at');
+            $table->dateTime('called_at');
             $table->index(['lead_id', 'called_at']);
         });
 

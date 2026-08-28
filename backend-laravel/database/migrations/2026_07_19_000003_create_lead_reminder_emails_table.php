@@ -12,7 +12,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('lead_id')->constrained()->cascadeOnDelete();
             $table->unsignedTinyInteger('reminder_day');
-            $table->timestamp('sent_at');
+            $table->dateTime('sent_at');
             $table->unique(['lead_id', 'reminder_day']);
             $table->index(['lead_id', 'sent_at']);
         });
