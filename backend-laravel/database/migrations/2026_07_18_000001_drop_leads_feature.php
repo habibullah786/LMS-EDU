@@ -20,8 +20,14 @@ return new class extends Migration
         // enrollments_new_lead_id_index instead of the conventional
         // enrollments_lead_id_index, so drop both names defensively rather than
         // relying on dropIndex(['lead_id'])'s single conventional-name guess.
-        DB::statement('DROP INDEX IF EXISTS enrollments_lead_id_index');
-        DB::statement('DROP INDEX IF EXISTS enrollments_new_lead_id_index');
+        if (DB::connection()->getDriverName() === 'mysql') {
+            Schema::table('enrollments', function (Blueprint $table) {
+                $table->dropIndex('enrollments_lead_id_index');
+            });
+        } else {
+            DB::statement('DROP INDEX IF EXISTS enrollments_lead_id_index');
+            DB::statement('DROP INDEX IF EXISTS enrollments_new_lead_id_index');
+        }
 
         Schema::table('enrollments', function (Blueprint $table) {
             $table->dropColumn('lead_id');

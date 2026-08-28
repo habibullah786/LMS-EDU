@@ -15,7 +15,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            Schema::table('enrollments', function (Blueprint $table) {
+                $table->string('status', 255)->change();
+            });
+
+            return;
+        }
+
+        if ($driver === 'pgsql') {
             DB::statement('ALTER TABLE enrollments DROP CONSTRAINT IF EXISTS enrollments_status_check');
             DB::statement('ALTER TABLE enrollments ALTER COLUMN status TYPE VARCHAR(255)');
 

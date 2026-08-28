@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -16,7 +18,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            Schema::table('payments', function (Blueprint $table) {
+                $table->string('currency', 3)->default('CAD')->change();
+            });
+        } elseif (DB::connection()->getDriverName() === 'pgsql') {
             DB::statement("ALTER TABLE payments ALTER COLUMN currency SET DEFAULT 'CAD'");
         }
         // SQLite has no lightweight ALTER COLUMN SET DEFAULT; skipped there since
@@ -29,7 +35,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            Schema::table('payments', function (Blueprint $table) {
+                $table->string('currency', 3)->default('INR')->change();
+            });
+        } elseif (DB::connection()->getDriverName() === 'pgsql') {
             DB::statement("ALTER TABLE payments ALTER COLUMN currency SET DEFAULT 'INR'");
         }
     }

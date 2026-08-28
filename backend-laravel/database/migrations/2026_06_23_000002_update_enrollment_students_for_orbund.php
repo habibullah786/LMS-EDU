@@ -12,7 +12,26 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->dropForeign(['student_id']);
+                $table->dropUnique(['enrollment_id', 'student_id', 'class_id']);
+            });
+
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->unsignedBigInteger('student_id')->nullable()->change();
+                $table->string('course')->change();
+                $table->string('location')->change();
+                $table->string('instructor')->default('')->change();
+                $table->string('type')->default('Trial')->change();
+            });
+
+            return;
+        }
+
+        if ($driver === 'pgsql') {
             Schema::table('enrollment_students', function (Blueprint $table) {
                 $table->dropForeign(['student_id']);
                 $table->dropUnique(['enrollment_id', 'student_id', 'class_id']);
@@ -64,7 +83,23 @@ return new class extends Migration {
 
     public function down(): void
     {
-        if (DB::connection()->getDriverName() !== 'sqlite') {
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->unsignedBigInteger('student_id')->nullable(false)->change();
+                $table->enum('course', ['Coding', 'Robotics'])->change();
+                $table->enum('location', ['Delhi', 'Bengaluru', 'Kolkata'])->change();
+                $table->string('instructor')->default(null)->change();
+                $table->enum('type', ['Trial', 'Paid'])->default('Trial')->change();
+                $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
+                $table->unique(['enrollment_id', 'student_id', 'class_id']);
+            });
+
+            return;
+        }
+
+        if ($driver === 'pgsql') {
             DB::statement('ALTER TABLE enrollment_students ALTER COLUMN instructor DROP DEFAULT');
             DB::statement("ALTER TABLE enrollment_students ADD CONSTRAINT enrollment_students_course_check CHECK (course IN ('Coding', 'Robotics'))");
             DB::statement("ALTER TABLE enrollment_students ADD CONSTRAINT enrollment_students_location_check CHECK (location IN ('Delhi', 'Bengaluru', 'Kolkata'))");

@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -17,6 +19,16 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            // MySQL/MariaDB unique indexes already allow multiple NULL values,
+            // which gives the same behavior as the partial index below.
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->unique(['student_id', 'class_id'], 'idx_enrollment_students_no_dup');
+            });
+
+            return;
+        }
+
         DB::statement(
             'CREATE UNIQUE INDEX idx_enrollment_students_no_dup ON enrollment_students (student_id, class_id) WHERE student_id IS NOT NULL'
         );
@@ -27,6 +39,14 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            Schema::table('enrollment_students', function (Blueprint $table) {
+                $table->dropUnique('idx_enrollment_students_no_dup');
+            });
+
+            return;
+        }
+
         DB::statement('DROP INDEX IF EXISTS idx_enrollment_students_no_dup');
     }
 };

@@ -19,8 +19,16 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Only one open cart per user at a time.
-        DB::statement("CREATE UNIQUE INDEX idx_carts_one_open_per_user ON carts (user_id) WHERE status = 'open'");
+        // MySQL/MariaDB do not support partial indexes. Application-level cart
+        // creation already serializes this lookup, so retain a lookup index on
+        // those platforms and use the stronger partial constraint elsewhere.
+        if (DB::connection()->getDriverName() === 'mysql') {
+            Schema::table('carts', function (Blueprint $table) {
+                $table->index(['user_id', 'status'], 'idx_carts_user_status');
+            });
+        } else {
+            DB::statement("CREATE UNIQUE INDEX idx_carts_one_open_per_user ON carts (user_id) WHERE status = 'open'");
+        }
     }
 
     /**
